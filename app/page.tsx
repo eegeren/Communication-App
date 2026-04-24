@@ -100,55 +100,72 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    socket.on("server-list", (serverList) => {
+    const onServerList = (serverList: any[]) => {
       setServers(serverList);
       if (!currentServer && serverList.length > 0) {
         setCurrentServer(serverList[0].id);
       }
-    });
-    socket.on("room-list", (rooms) => setActiveRooms(rooms));
-    socket.on("archived-server-list", (list) => setArchivedServers(list));
-    socket.on("archived-room-list", (list) => setArchivedRooms(list));
-    socket.on("user-list", (userList) => setUsers(userList));
-    socket.on("receive-message", (msg) => setMessages((prev) => [...prev, msg]));
-    socket.on("message-history", (history) => setMessages(history));
-
-    socket.on("receive-nudge", () => {
+    };
+    const onRoomList = (rooms: any[]) => setActiveRooms(rooms);
+    const onArchivedServerList = (list: any[]) => setArchivedServers(list);
+    const onArchivedRoomList = (list: any[]) => setArchivedRooms(list);
+    const onUserList = (userList: any[]) => setUsers(userList);
+    const onReceiveMessage = (msg: any) => setMessages((prev) => [...prev, msg]);
+    const onMessageHistory = (history: any) => setMessages(history);
+    const onReceiveNudge = () => {
       setIsNudged(true);
-      try { new Audio("https://www.soundjay.com/buttons/beep-01a.mp3").play(); } catch (e) {}
+      try {
+        new Audio("https://www.soundjay.com/buttons/beep-01a.mp3").play();
+      } catch (e) {}
       setTimeout(() => setIsNudged(false), 500);
-    });
-
-    socket.on("user-joined", async (userId) => createPeer(userId, true));
-    socket.on("user-left", (userId) => {
-        if (peerConnections.current[userId]) {
-            peerConnections.current[userId].close();
-            delete peerConnections.current[userId];
-            delete remoteAudios.current[userId];
-        }
-    });
-
-    socket.on("offer", async ({ offer, from }) => {
+    };
+    const onUserJoined = async (userId: string) => createPeer(userId, true);
+    const onUserLeft = (userId: string) => {
+      if (peerConnections.current[userId]) {
+        peerConnections.current[userId].close();
+        delete peerConnections.current[userId];
+        delete remoteAudios.current[userId];
+      }
+    };
+    const onOffer = async ({ offer, from }: { offer: RTCSessionDescriptionInit; from: string }) => {
       const pc = createPeer(from, false);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       socket.emit("answer", { answer, to: from });
-    });
-
-    socket.on("answer", async ({ answer, from }) => {
+    };
+    const onAnswer = async ({ answer, from }: { answer: RTCSessionDescriptionInit; from: string }) => {
       const pc = peerConnections.current[from];
       if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
-    });
-
-    socket.on("ice-candidate", async ({ candidate, from }) => {
+    };
+    const onIceCandidate = async ({
+      candidate,
+      from,
+    }: {
+      candidate: RTCIceCandidateInit;
+      from: string;
+    }) => {
       const pc = peerConnections.current[from];
       if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
-    });
-
-    socket.on("connect", () => {
+    };
+    const onConnectRefreshState = () => {
       socket.emit("request-state");
-    });
+    };
+
+    socket.on("server-list", onServerList);
+    socket.on("room-list", onRoomList);
+    socket.on("archived-server-list", onArchivedServerList);
+    socket.on("archived-room-list", onArchivedRoomList);
+    socket.on("user-list", onUserList);
+    socket.on("receive-message", onReceiveMessage);
+    socket.on("message-history", onMessageHistory);
+    socket.on("receive-nudge", onReceiveNudge);
+    socket.on("user-joined", onUserJoined);
+    socket.on("user-left", onUserLeft);
+    socket.on("offer", onOffer);
+    socket.on("answer", onAnswer);
+    socket.on("ice-candidate", onIceCandidate);
+    socket.on("connect", onConnectRefreshState);
 
     if (socket.connected) {
       socket.emit("request-state");
@@ -159,7 +176,23 @@ export default function Home() {
       setRoomContextMenu(null);
     };
     window.addEventListener("click", closeMenu);
-    return () => { socket.off(); window.removeEventListener("click", closeMenu); };
+    return () => {
+      socket.off("server-list", onServerList);
+      socket.off("room-list", onRoomList);
+      socket.off("archived-server-list", onArchivedServerList);
+      socket.off("archived-room-list", onArchivedRoomList);
+      socket.off("user-list", onUserList);
+      socket.off("receive-message", onReceiveMessage);
+      socket.off("message-history", onMessageHistory);
+      socket.off("receive-nudge", onReceiveNudge);
+      socket.off("user-joined", onUserJoined);
+      socket.off("user-left", onUserLeft);
+      socket.off("offer", onOffer);
+      socket.off("answer", onAnswer);
+      socket.off("ice-candidate", onIceCandidate);
+      socket.off("connect", onConnectRefreshState);
+      window.removeEventListener("click", closeMenu);
+    };
   }, [currentServer]);
 
   const createPeer = (targetId: string, isInitiator: boolean) => {
