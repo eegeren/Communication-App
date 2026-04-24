@@ -87,6 +87,14 @@ export default function Home() {
       if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
     });
 
+    socket.on("connect", () => {
+      socket.emit("request-state");
+    });
+
+    if (socket.connected) {
+      socket.emit("request-state");
+    }
+
     const closeMenu = () => setContextMenu(null);
     window.addEventListener("click", closeMenu);
     return () => { socket.off(); window.removeEventListener("click", closeMenu); };

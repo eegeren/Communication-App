@@ -187,6 +187,11 @@ function registerSocketHandlers(io, { state, store, env }) {
     await emitServerList(io, store, socket);
     await emitRoomList(io, state, store, socket);
 
+    socket.on("request-state", async () => {
+      await emitServerList(io, store, socket);
+      await emitRoomList(io, state, store, socket);
+    });
+
     socket.on("create-server", async (payload, ack) => {
       try {
         const { serverName, userName } = parseOrThrow(
