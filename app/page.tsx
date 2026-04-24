@@ -29,6 +29,7 @@ export default function Home() {
   const [isNudged, setIsNudged] = useState(false);
   
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, userId: string } | null>(null);
+  const [roomContextMenu, setRoomContextMenu] = useState<{ x: number, y: number, roomName: string } | null>(null);
   const [userVolumes, setUserVolumes] = useState<{ [key: string]: number }>({});
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
@@ -107,7 +108,10 @@ export default function Home() {
       socket.emit("request-state");
     }
 
-    const closeMenu = () => setContextMenu(null);
+    const closeMenu = () => {
+      setContextMenu(null);
+      setRoomContextMenu(null);
+    };
     window.addEventListener("click", closeMenu);
     return () => { socket.off(); window.removeEventListener("click", closeMenu); };
   }, [currentServer]);
@@ -403,12 +407,9 @@ export default function Home() {
             <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Odalar</h3>
             <div className="space-y-1">
               {roomsToRender.map(room => (
-                <button key={`${room.serverId || "default"}:${room.name}`} onContextMenu={(e) => { e.preventDefault(); if (myRole === "owner" || myRole === "admin" || myRole === "mod") openRoomSettings(room.name); }} onClick={() => handleJoinRoom(room.name)} className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
+                <button key={`${room.serverId || "default"}:${room.name}`} onContextMenu={(e) => { e.preventDefault(); if (myRole === "owner" || myRole === "admin" || myRole === "mod") setRoomContextMenu({ x: e.pageX, y: e.pageY, roomName: room.name }); }} onClick={() => handleJoinRoom(room.name)} className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
                   <span># {room.name}</span>
                   <span className="text-[10px] bg-slate-700 px-2 rounded-full">{room.count}</span>
-                  {(myRole === "owner" || myRole === "admin") && (
-                    <span onClick={(e) => { e.stopPropagation(); deleteRoom(room.name); }} className="text-[9px] ml-2 text-rose-400">sil</span>
-                  )}
                 </button>
               ))}
             </div>
@@ -595,12 +596,43 @@ export default function Home() {
         </div>
       )}
 
+      {roomContextMenu && (
+        <div className="fixed z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-2 w-52 font-sans" style={{ top: roomContextMenu.y, left: roomContextMenu.x }}>
+          <button
+            onClick={() => {
+              openRoomSettings(roomContextMenu.roomName);
+              setRoomContextMenu(null);
+            }}
+            className="w-full text-left p-3 hover:bg-sky-600 hover:text-white rounded-xl text-xs font-black transition-all mb-1"
+          >
+            Oda Ayarları
+          </button>
+          {(myRole === "owner" || myRole === "admin") && (
+            <button
+              onClick={() => {
+                deleteRoom(roomContextMenu.roomName);
+                setRoomContextMenu(null);
+              }}
+              className="w-full text-left p-3 hover:bg-rose-600 hover:text-white rounded-xl text-xs font-black transition-all"
+            >
+              Odayı Arşivle (Sil)
+            </button>
+          )}
+        </div>
+      )}
+
       {serverSettingsOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <h3 className="text-sm font-black uppercase text-slate-200">Sunucu Ayarları</h3>
-            <input value={serverSettingsName} onChange={(e) => setServerSettingsName(e.target.value)} placeholder="Sunucu adı" className="w-full p-2 bg-slate-800 border border-slate-700 rounded-xl text-xs" />
-            <textarea value={serverSettingsDescription} onChange={(e) => setServerSettingsDescription(e.target.value)} placeholder="Açıklama" className="w-full p-2 bg-slate-800 border border-slate-700 rounded-xl text-xs min-h-20" />
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-black uppercase text-slate-200 tracking-wide">Sunucu Ayarları</h3>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-black text-slate-500">Sunucu adı</label>
+              <input value={serverSettingsName} onChange={(e) => setServerSettingsName(e.target.value)} placeholder="Sunucu adı" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-black text-slate-500">Açıklama</label>
+              <textarea value={serverSettingsDescription} onChange={(e) => setServerSettingsDescription(e.target.value)} placeholder="Sunucu açıklaması" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs min-h-20" />
+            </div>
             <div className="flex gap-2">
               <button onClick={updateServerSettings} className="flex-1 bg-sky-600 rounded-xl p-2 text-xs font-bold">Kaydet</button>
               <button onClick={() => setServerSettingsOpen(false)} className="bg-slate-700 rounded-xl p-2 text-xs font-bold">Kapat</button>
@@ -625,10 +657,16 @@ export default function Home() {
 
       {roomSettingsOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <h3 className="text-sm font-black uppercase text-slate-200">Oda Ayarları</h3>
-            <input value={roomSettingsName} onChange={(e) => setRoomSettingsName(e.target.value)} placeholder="Oda adı" className="w-full p-2 bg-slate-800 border border-slate-700 rounded-xl text-xs" />
-            <textarea value={roomSettingsTopic} onChange={(e) => setRoomSettingsTopic(e.target.value)} placeholder="Konu" className="w-full p-2 bg-slate-800 border border-slate-700 rounded-xl text-xs min-h-20" />
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-black uppercase text-slate-200 tracking-wide">Oda Ayarları</h3>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-black text-slate-500">Oda adı</label>
+              <input value={roomSettingsName} onChange={(e) => setRoomSettingsName(e.target.value)} placeholder="Oda adı" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-black text-slate-500">Konu</label>
+              <textarea value={roomSettingsTopic} onChange={(e) => setRoomSettingsTopic(e.target.value)} placeholder="Oda konusu" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs min-h-20" />
+            </div>
             <div className="flex gap-2">
               <button onClick={updateRoomSettings} className="flex-1 bg-sky-600 rounded-xl p-2 text-xs font-bold">Kaydet</button>
               <button onClick={() => setRoomSettingsOpen(false)} className="bg-slate-700 rounded-xl p-2 text-xs font-bold">Kapat</button>
