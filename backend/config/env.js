@@ -36,6 +36,7 @@ function loadEnvConfig() {
     corsOriginValidator: buildCorsOriginValidator(allowedOrigins),
     persistenceFile:
       process.env.PERSISTENCE_FILE || "backend/persistence/data.json",
+    databaseUrl: process.env.DATABASE_URL || "",
   };
 }
 

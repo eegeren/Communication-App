@@ -5,7 +5,7 @@ Bu proje Next.js UI + Socket.IO backend içerir. Arayüz tasarımına dokunmadan
 - Payload doğrulama (zod)
 - Token tabanlı socket auth
 - CORS allow-list
-- JSON tabanlı persistence (mesaj geçmişi + oda eventleri)
+- Prisma destekli DB persistence (fallback: JSON store)
 - Healthcheck endpoint (`/healthz`)
 
 eklendi.
@@ -50,7 +50,8 @@ npm run start:socket:only
 `SOCKET_AUTH_TOKEN`: Backend tarafındaki beklenen token  
 `ALLOWED_ORIGINS`: CORS için izinli origin listesi (virgülle ayrılmış)  
 `PERSISTENCE_FILE`: Kalıcı veri dosya yolu  
-`PORT`: Socket server portu
+`PORT`: Socket server portu  
+`DATABASE_URL`: Prisma/PostgreSQL bağlantı adresi (boşsa JSON fallback)
 
 ## Backend Dosya Yapısı
 
@@ -59,8 +60,28 @@ npm run start:socket:only
 - `backend/http/createHttpServer.js`: health endpoint
 - `backend/socket/registerSocketHandlers.js`: tüm socket event handler'ları
 - `backend/state/memoryState.js`: anlık kullanıcı/oda state'i
-- `backend/persistence/jsonStore.js`: persistence katmanı
+- `backend/persistence/prismaStore.js`: Prisma tabanlı persistence
+- `backend/persistence/jsonStore.js`: fallback persistence
+- `backend/persistence/createStore.js`: persistence seçim katmanı
 - `backend/validation/schemas.js`: event payload şemaları
+
+## Prisma Hazırlığı
+
+```bash
+npm run prisma:generate
+```
+
+Production'da `DATABASE_URL` verirsen backend otomatik olarak Prisma store kullanır.
+
+## Test
+
+```bash
+npm run test
+```
+
+Socket entegrasyon testleri:
+- message persistence + message history
+- nudge everyone akışı
 
 ## Healthcheck
 

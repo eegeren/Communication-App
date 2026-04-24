@@ -56,7 +56,7 @@ class JsonStore {
     return this.data.rooms[roomId];
   }
 
-  appendMessage(roomId, message) {
+  async appendMessage(roomId, message) {
     const room = this.ensureRoom(roomId);
     room.messages.push(message);
     if (room.messages.length > 200) {
@@ -65,7 +65,7 @@ class JsonStore {
     this.flush();
   }
 
-  appendEvent(roomId, event) {
+  async appendEvent(roomId, event) {
     const room = this.ensureRoom(roomId);
     room.events.push(event);
     if (room.events.length > 300) {
@@ -74,10 +74,26 @@ class JsonStore {
     this.flush();
   }
 
-  getRecentMessages(roomId, limit = 50) {
+  async getRecentMessages(roomId, limit = 50) {
     const room = this.ensureRoom(roomId);
     return room.messages.slice(-limit);
   }
+
+  async touchRoom(roomId) {
+    this.ensureRoom(roomId);
+    this.flush();
+  }
+
+  async listRooms() {
+    return Object.keys(this.data.rooms).map((roomId) => ({ roomId }));
+  }
+
+  async deleteRoom(roomId) {
+    delete this.data.rooms[roomId];
+    this.flush();
+  }
+
+  async close() {}
 }
 
 module.exports = {

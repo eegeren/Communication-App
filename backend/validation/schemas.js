@@ -4,6 +4,7 @@ const { z } = require("zod");
 const joinRoomSchema = z.object({
   roomId: z.string().trim().min(1).max(64),
   userName: z.string().trim().min(1).max(32),
+  serverId: z.string().trim().min(1).max(64).optional(),
 });
 
 const messageSchema = z.object({
@@ -16,6 +17,23 @@ const targetSchema = z.string().trim().min(1);
 
 const signalSchema = z.object({
   to: z.string().trim().min(1),
+});
+
+const createServerSchema = z.object({
+  serverName: z.string().trim().min(1).max(64),
+  userName: z.string().trim().min(1).max(32),
+});
+
+const createRoomSchema = z.object({
+  serverId: z.string().trim().min(1).max(64),
+  roomName: z.string().trim().min(1).max(64),
+  userName: z.string().trim().min(1).max(32),
+});
+
+const roleChangeSchema = z.object({
+  serverId: z.string().trim().min(1).max(64),
+  actorUserName: z.string().trim().min(1).max(32),
+  targetUserName: z.string().trim().min(1).max(32),
 });
 
 function parseOrThrow(schema, payload, eventName) {
@@ -36,5 +54,8 @@ module.exports = {
   statusSchema,
   targetSchema,
   signalSchema,
+  createServerSchema,
+  createRoomSchema,
+  roleChangeSchema,
   parseOrThrow,
 };

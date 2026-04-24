@@ -11,9 +11,12 @@
     "start:web": "next start",
     "start:socket": "node server.js",
     "start:socket:only": "node server.js",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate"
   },
   "dependencies": {
+    "@prisma/client": "^6.7.0",
     "concurrently": "^9.2.1",
     "next": "16.2.4",
     "react": "19.2.4",
@@ -29,7 +32,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "prisma": "^6.7.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

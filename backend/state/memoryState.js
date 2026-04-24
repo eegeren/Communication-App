@@ -44,6 +44,23 @@ class MemoryState {
 
     return current.room && target.room && current.room === target.room;
   }
+
+  listUsers() {
+    return Object.values(this.users);
+  }
+
+  updateRoleForUser(serverId, userName, role) {
+    const normalized = userName.toLowerCase();
+    for (const user of Object.values(this.users)) {
+      if (
+        user.serverId === serverId &&
+        typeof user.name === "string" &&
+        user.name.toLowerCase() === normalized
+      ) {
+        user.role = role;
+      }
+    }
+  }
 }
 
 module.exports = {

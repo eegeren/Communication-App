@@ -12,6 +12,9 @@ const socket = io(socketServerUrl, {
 });
 
 export default function Home() {
+  const [servers, setServers] = useState<any[]>([]);
+  const [currentServer, setCurrentServer] = useState("default");
+  const [newServerName, setNewServerName] = useState("");
   const [userName, setUserName] = useState("");
   const [currentRoom, setCurrentRoom] = useState("");
   const [newRoomName, setNewRoomName] = useState("");
@@ -40,6 +43,12 @@ export default function Home() {
   }, [messages]);
 
   useEffect(() => {
+    socket.on("server-list", (serverList) => {
+      setServers(serverList);
+      if (!currentServer && serverList.length > 0) {
+        setCurrentServer(serverList[0].id);
+      }
+    });
     socket.on("room-list", (rooms) => setActiveRooms(rooms));
     socket.on("user-list", (userList) => setUsers(userList));
     socket.on("receive-message", (msg) => setMessages((prev) => [...prev, msg]));
@@ -81,7 +90,7 @@ export default function Home() {
     const closeMenu = () => setContextMenu(null);
     window.addEventListener("click", closeMenu);
     return () => { socket.off(); window.removeEventListener("click", closeMenu); };
-  }, []);
+  }, [currentServer]);
 
   const createPeer = (targetId: string, isInitiator: boolean) => {
     if (peerConnections.current[targetId]) return peerConnections.current[targetId];
@@ -146,8 +155,34 @@ export default function Home() {
         checkVolume();
       }
       setCurrentRoom(roomName);
-      socket.emit("join-room", { roomId: roomName, userName });
+      socket.emit("join-room", { roomId: roomName, userName, serverId: currentServer });
     } catch (err) { alert("Mikrofon hatası!"); }
+  };
+
+  const createServer = () => {
+    const value = newServerName.trim();
+    if (!value) return;
+    socket.emit("create-server", { serverName: value, userName }, (res: any) => {
+      if (res?.ok && res.serverId) {
+        setCurrentServer(res.serverId);
+      }
+    });
+    setNewServerName("");
+  };
+
+  const createRoom = async () => {
+    const value = newRoomName.trim();
+    if (!value) return;
+    socket.emit(
+      "create-room",
+      { serverId: currentServer, roomName: value, userName },
+      async (res: any) => {
+        if (res?.ok) {
+          await handleJoinRoom(value);
+          setNewRoomName("");
+        }
+      }
+    );
   };
 
   const handleScreenShare = async () => {
@@ -180,6 +215,11 @@ export default function Home() {
     }
   };
 
+  const myRole =
+    users.find((u) => u.id === socket.id)?.role ||
+    users.find((u) => u.name === userName)?.role ||
+    "member";
+
   if (!isJoined) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white font-sans">
@@ -208,7 +248,9 @@ export default function Home() {
           <div>
             <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Odalar</h3>
             <div className="space-y-1">
-              {activeRooms.map(room => (
+              {activeRooms
+                .filter((room) => (room.serverId || "default") === currentServer)
+                .map(room => (
                 <button key={room.name} onClick={() => handleJoinRoom(room.name)} className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
                   <span># {room.name}</span>
                   <span className="text-[10px] bg-slate-700 px-2 rounded-full">{room.count}</span>
@@ -217,10 +259,24 @@ export default function Home() {
             </div>
           </div>
           <div>
+            <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Sunucular</h3>
+            <div className="space-y-1">
+              {servers.map((server) => (
+                <button key={server.id} onClick={() => setCurrentServer(server.id)} className={`w-full text-left p-3 rounded-2xl text-xs font-bold transition-all ${currentServer === server.id ? "bg-rose-600 text-white" : "text-slate-300 hover:bg-slate-800"}`}>
+                  {server.name}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 px-2 mt-2">
+              <input type="text" placeholder="Sunucu adı..." className="w-full p-2 bg-slate-800 border border-slate-700 rounded-xl text-xs outline-none focus:border-rose-500 transition-colors" value={newServerName} onChange={(e) => setNewServerName(e.target.value)} />
+              <button onClick={createServer} className="bg-rose-600 text-white px-3 rounded-xl font-bold text-xs transform hover:scale-125 active:scale-90 transition-all shadow-lg">+</button>
+            </div>
+          </div>
+          <div>
             <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Yeni Oda</h3>
             <div className="flex gap-2 px-2">
                <input type="text" placeholder="Oda adı..." className="w-full p-2 bg-slate-800 border border-slate-700 rounded-xl text-xs outline-none focus:border-rose-500 transition-colors" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} />
-              <button onClick={() => { handleJoinRoom(newRoomName); setNewRoomName(""); }} className="bg-rose-600 text-white px-3 rounded-xl font-bold text-xs transform hover:scale-125 active:scale-90 transition-all shadow-lg">+</button>
+              <button onClick={createRoom} className="bg-rose-600 text-white px-3 rounded-xl font-bold text-xs transform hover:scale-125 active:scale-90 transition-all shadow-lg">+</button>
             </div>
           </div>
         </div>
@@ -281,6 +337,7 @@ export default function Home() {
                         <span className="font-black text-base text-slate-200 tracking-tight leading-none uppercase truncate">
                           {u.name} {u.id === socket.id && <span className="text-sky-500 text-[10px] ml-1">(SEN)</span>}
                         </span>
+                        {u.role && <span className="text-[8px] text-amber-400 uppercase font-black">{u.role}</span>}
                         {u.isSharingScreen && <div className="text-[8px] mt-1 bg-rose-600 w-fit px-1.5 py-0.5 rounded-full font-black animate-pulse">YAYINDA</div>}
                       </div>
                     </div>
@@ -316,6 +373,28 @@ export default function Home() {
       {contextMenu && (
         <div className="fixed z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-2 w-48 font-sans" style={{ top: contextMenu.y, left: contextMenu.x }}>
           <button onClick={() => { socket.emit("send-nudge", contextMenu.userId); setContextMenu(null); }} className="w-full text-left p-3 hover:bg-amber-500 hover:text-slate-900 rounded-xl text-xs font-black transition-all mb-1">👉 DÜRT!</button>
+          {myRole === "owner" && (
+            <>
+              <button onClick={() => {
+                const target = users.find((u) => u.id === contextMenu.userId);
+                if (!target) return;
+                socket.emit("promote-user", { serverId: currentServer, actorUserName: userName, targetUserName: target.name });
+                setContextMenu(null);
+              }} className="w-full text-left p-3 hover:bg-emerald-500 hover:text-slate-900 rounded-xl text-xs font-black transition-all mb-1">⬆️ Admin Yap</button>
+              <button onClick={() => {
+                const target = users.find((u) => u.id === contextMenu.userId);
+                if (!target) return;
+                socket.emit("demote-user", { serverId: currentServer, actorUserName: userName, targetUserName: target.name });
+                setContextMenu(null);
+              }} className="w-full text-left p-3 hover:bg-rose-500 hover:text-white rounded-xl text-xs font-black transition-all mb-1">⬇️ Admin Al</button>
+              <button onClick={() => {
+                const target = users.find((u) => u.id === contextMenu.userId);
+                if (!target) return;
+                socket.emit("transfer-owner", { serverId: currentServer, actorUserName: userName, targetUserName: target.name });
+                setContextMenu(null);
+              }} className="w-full text-left p-3 hover:bg-violet-500 hover:text-white rounded-xl text-xs font-black transition-all mb-1">👑 Sahipliği Devret</button>
+            </>
+          )}
           <div className="p-3 border-t border-slate-800">
             <label className="text-[9px] font-black text-slate-500 uppercase block mb-2">Kullanıcı Sesi</label>
             <input type="range" min="0" max="1" step="0.1" className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500" value={userVolumes[contextMenu.userId] ?? 1} onChange={(e) => {
