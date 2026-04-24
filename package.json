@@ -1,0 +1,35 @@
+{
+  "name": "golge-ses-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:socket\"",
+    "dev:web": "next dev",
+    "dev:socket": "node server.js",
+    "build": "next build",
+    "start": "concurrently \"npm run start:web\" \"npm run start:socket\"",
+    "start:web": "next start",
+    "start:socket": "node server.js",
+    "start:socket:only": "node server.js",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1",
+    "next": "16.2.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

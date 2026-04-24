@@ -1,0 +1,331 @@
+"use client";
+import { useState, useEffect, useRef } from "react";
+import { io } from "socket.io-client";
+
+const socketServerUrl =
+  process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || "http://localhost:3001";
+const socketAuthToken = process.env.NEXT_PUBLIC_SOCKET_AUTH_TOKEN || "";
+const socketPath = process.env.NEXT_PUBLIC_SOCKET_PATH || "/socket.io";
+const socket = io(socketServerUrl, {
+  path: socketPath,
+  auth: socketAuthToken ? { token: socketAuthToken } : undefined,
+});
+
+export default function Home() {
+  const [userName, setUserName] = useState("");
+  const [currentRoom, setCurrentRoom] = useState("");
+  const [newRoomName, setNewRoomName] = useState("");
+  const [activeRooms, setActiveRooms] = useState<any[]>([]);
+  const [isJoined, setIsJoined] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSharingScreen, setIsSharingScreen] = useState(false);
+  
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [isNudged, setIsNudged] = useState(false);
+  
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, userId: string } | null>(null);
+  const [userVolumes, setUserVolumes] = useState<{ [key: string]: number }>({});
+
+  const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({});
+  const remoteAudios = useRef<{ [key: string]: HTMLAudioElement }>({}); 
+  const localStream = useRef<MediaStream | null>(null);
+  const screenStream = useRef<MediaStream | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    socket.on("room-list", (rooms) => setActiveRooms(rooms));
+    socket.on("user-list", (userList) => setUsers(userList));
+    socket.on("receive-message", (msg) => setMessages((prev) => [...prev, msg]));
+    socket.on("message-history", (history) => setMessages(history));
+
+    socket.on("receive-nudge", () => {
+      setIsNudged(true);
+      try { new Audio("https://www.soundjay.com/buttons/beep-01a.mp3").play(); } catch (e) {}
+      setTimeout(() => setIsNudged(false), 500);
+    });
+
+    socket.on("user-joined", async (userId) => createPeer(userId, true));
+    socket.on("user-left", (userId) => {
+        if (peerConnections.current[userId]) {
+            peerConnections.current[userId].close();
+            delete peerConnections.current[userId];
+            delete remoteAudios.current[userId];
+        }
+    });
+
+    socket.on("offer", async ({ offer, from }) => {
+      const pc = createPeer(from, false);
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit("answer", { answer, to: from });
+    });
+
+    socket.on("answer", async ({ answer, from }) => {
+      const pc = peerConnections.current[from];
+      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on("ice-candidate", async ({ candidate, from }) => {
+      const pc = peerConnections.current[from];
+      if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener("click", closeMenu);
+    return () => { socket.off(); window.removeEventListener("click", closeMenu); };
+  }, []);
+
+  const createPeer = (targetId: string, isInitiator: boolean) => {
+    if (peerConnections.current[targetId]) return peerConnections.current[targetId];
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    
+    pc.onicecandidate = (e) => e.candidate && socket.emit("ice-candidate", { candidate: e.candidate, to: targetId });
+    pc.ontrack = (e) => {
+      if (e.track.kind === "video") {
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0];
+      } else {
+        const audio = new Audio();
+        audio.srcObject = e.streams[0];
+        audio.autoplay = true;
+        audio.volume = userVolumes[targetId] ?? 1.0;
+        remoteAudios.current[targetId] = audio;
+        document.body.appendChild(audio);
+      }
+    };
+
+    pc.onnegotiationneeded = async () => {
+        try {
+            if (isInitiator) {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socket.emit("offer", { offer, to: targetId });
+            }
+        } catch (err) {}
+    };
+
+    localStream.current?.getTracks().forEach(t => pc.addTrack(t, localStream.current!));
+    if (screenStream.current) screenStream.current.getTracks().forEach(t => pc.addTrack(t, screenStream.current!));
+    
+    peerConnections.current[targetId] = pc;
+    return pc;
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, userId: string) => {
+    e.preventDefault();
+    if (userId === socket.id) return;
+    setContextMenu({ x: e.pageX, y: e.pageY, userId });
+  };
+
+  const handleJoinRoom = async (roomName: string) => {
+    if (!roomName.trim() || roomName === currentRoom) return;
+    setMessages([]);
+    Object.values(peerConnections.current).forEach(pc => pc.close());
+    peerConnections.current = {};
+    try {
+      if (!localStream.current) {
+        localStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(localStream.current);
+        const analyser = audioContext.createAnalyser();
+        source.connect(analyser);
+        const checkVolume = () => {
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / data.length;
+          socket.emit("speaking-status", avg > 12); 
+          requestAnimationFrame(checkVolume);
+        };
+        checkVolume();
+      }
+      setCurrentRoom(roomName);
+      socket.emit("join-room", { roomId: roomName, userName });
+    } catch (err) { alert("Mikrofon hatası!"); }
+  };
+
+  const handleScreenShare = async () => {
+    if (!isSharingScreen) {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        screenStream.current = stream;
+        setIsSharingScreen(true);
+        socket.emit("share-screen-status", true);
+        Object.values(peerConnections.current).forEach(pc => {
+          stream.getVideoTracks().forEach(track => pc.addTrack(track, stream));
+        });
+        stream.getVideoTracks()[0].onended = () => stopScreenShare();
+      } catch (err) {}
+    } else { stopScreenShare(); }
+  };
+
+  const stopScreenShare = () => {
+    screenStream.current?.getTracks().forEach(track => track.stop());
+    screenStream.current = null;
+    setIsSharingScreen(false);
+    socket.emit("share-screen-status", false);
+  };
+
+  const sendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newMessage.trim()) {
+      socket.emit("send-message", { text: newMessage });
+      setNewMessage("");
+    }
+  };
+
+  if (!isJoined) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white font-sans">
+        <div className="w-full max-w-sm bg-slate-900 p-10 rounded-[40px] shadow-2xl border border-slate-800">
+          <h1 className="text-4xl font-black text-rose-500 text-center mb-8 tracking-tighter cursor-default">Dumbasscord</h1>
+          <input 
+            type="text" placeholder="Takma Adınız" 
+            className="w-full p-5 bg-slate-800 border border-slate-700 rounded-3xl outline-none text-center text-lg font-bold text-white focus:border-rose-500 placeholder:text-slate-500 transition-all"
+            value={userName} onChange={(e) => setUserName(e.target.value)}
+          />
+          <button onClick={() => userName.trim() && setIsJoined(true)} className="w-full mt-6 bg-rose-600 text-white p-5 rounded-3xl font-black text-lg hover:bg-rose-700 transform active:scale-95 transition-all shadow-lg">BAĞLAN</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex h-screen bg-slate-950 text-white font-sans overflow-hidden transition-all duration-100 ${isNudged ? 'translate-x-2 translate-y-2 scale-[1.01]' : ''}`}>
+      {/* SIDEBAR */}
+      <div className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
+        <div className="p-6 border-b border-slate-800">
+          <h1 className="text-2xl font-black text-rose-500 tracking-tighter">Dumbasscord</h1>
+          <p className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-widest">{userName}</p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div>
+            <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Odalar</h3>
+            <div className="space-y-1">
+              {activeRooms.map(room => (
+                <button key={room.name} onClick={() => handleJoinRoom(room.name)} className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
+                  <span># {room.name}</span>
+                  <span className="text-[10px] bg-slate-700 px-2 rounded-full">{room.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Yeni Oda</h3>
+            <div className="flex gap-2 px-2">
+               <input type="text" placeholder="Oda adı..." className="w-full p-2 bg-slate-800 border border-slate-700 rounded-xl text-xs outline-none focus:border-rose-500 transition-colors" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} />
+              <button onClick={() => { handleJoinRoom(newRoomName); setNewRoomName(""); }} className="bg-rose-600 text-white px-3 rounded-xl font-bold text-xs transform hover:scale-125 active:scale-90 transition-all shadow-lg">+</button>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 bg-slate-800/50 border-t border-slate-800 space-y-3">
+          <button onClick={() => { const t = localStream.current?.getAudioTracks()[0]; if (t) { t.enabled = !t.enabled; socket.emit("mute-status", !t.enabled); } setIsMuted(!isMuted); }} className={`w-full p-4 rounded-2xl font-black text-[10px] uppercase transform hover:scale-105 active:scale-95 transition-all ${isMuted ? 'bg-rose-600' : 'bg-sky-600'}`}>
+            {isMuted ? "Mikrofonu Aç" : "Mikrofonu Kapat"}
+          </button>
+          <button onClick={() => socket.emit("send-nudge")} className="w-full p-4 bg-amber-500 rounded-2xl font-black text-[10px] uppercase hover:bg-amber-600 transform hover:scale-105 active:scale-95 transition-all text-slate-900 shadow-lg">Dürt! (Herkesi)</button>
+        </div>
+      </div>
+
+      {/* ANA PANEL */}
+      <div className="flex-1 flex bg-slate-950">
+        {!currentRoom ? (
+          <div className="flex-1 flex items-center justify-center text-slate-500 italic">Dumbasscord'a hoş geldin!</div>
+        ) : (
+          <>
+            <div className="flex-1 flex flex-col border-r border-slate-800 relative">
+              <div className="p-6 border-b border-slate-800 bg-slate-900/30 flex justify-between items-center">
+                <h2 className="font-black text-xl uppercase tracking-tight"># {currentRoom}</h2>
+                <button onClick={handleScreenShare} className={`flex items-center gap-2 text-[10px] px-4 py-2 rounded-full font-black uppercase transition-all shadow-lg transform hover:scale-105 active:scale-95 ${isSharingScreen ? 'bg-rose-600 border border-rose-400 animate-pulse' : 'bg-slate-800 border border-slate-700 hover:border-rose-500 text-slate-200'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isSharingScreen ? 'bg-white' : 'bg-rose-500'}`}></span>
+                    {isSharingScreen ? "Yayını Durdur" : "Ekran Paylaş"}
+                </button>
+              </div>
+              
+              <div className="flex-1 p-8 overflow-y-auto flex flex-col gap-6">
+                {users.some(u => u.isSharingScreen) && (
+                    <div className="w-full aspect-video bg-black rounded-[40px] overflow-hidden border-4 border-rose-600/20 shadow-2xl relative">
+                        <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-contain" />
+                        <div className="absolute top-6 left-6 bg-rose-600 px-4 py-2 rounded-full text-[10px] font-black uppercase animate-pulse shadow-xl">CANLI YAYIN</div>
+                    </div>
+                )}
+                
+                {/* LİSTE DÜZENİ: SABİT GENİŞLİKLİ KARTLAR */}
+                <div className="flex flex-col gap-3">
+                  {users.map((u) => (
+                    <div 
+                      key={u.id} 
+                      onContextMenu={(e) => handleContextMenu(e, u.id)} 
+                      // w-80 eklenerek kart boyutu sabitlendi
+                      className={`p-4 rounded-3xl border-4 flex items-center gap-5 transition-all duration-300 relative cursor-context-menu w-80 ${u.isSpeaking ? 'border-sky-500 bg-sky-950/20' : 'border-slate-800 bg-slate-900'} shadow-lg`}
+                    >
+                      {u.isMuted && (
+                        <div className="absolute top-3 right-4 bg-rose-600/20 p-1.5 rounded-full border border-rose-500/40 shadow-inner z-20">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                              <line x1="1" y1="1" x2="23" y2="23" />
+                            </svg>
+                        </div>
+                      )}
+
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black shrink-0 transition-all duration-300 ${u.isSpeaking ? 'bg-sky-600 text-white shadow-lg' : 'bg-slate-700 text-slate-400'}`}>
+                        {u.name ? u.name[0].toUpperCase() : "?"}
+                      </div>
+
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-black text-base text-slate-200 tracking-tight leading-none uppercase truncate">
+                          {u.name} {u.id === socket.id && <span className="text-sky-500 text-[10px] ml-1">(SEN)</span>}
+                        </span>
+                        {u.isSharingScreen && <div className="text-[8px] mt-1 bg-rose-600 w-fit px-1.5 py-0.5 rounded-full font-black animate-pulse">YAYINDA</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* CHAT PANELİ */}
+            <div className="w-80 flex flex-col bg-slate-900/50 backdrop-blur-md shrink-0">
+              <div className="p-4 border-b border-slate-800 font-black text-[10px] uppercase text-slate-500 bg-slate-900/20 tracking-widest">Sohbet</div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex flex-col ${msg.sender === userName ? 'items-end' : 'items-start'}`}>
+                    <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter mb-1 px-1">{msg.sender}</span>
+                    <div className={`px-4 py-2 rounded-2xl text-sm max-w-[90%] break-words shadow-sm ${msg.sender === userName ? 'bg-sky-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-300 rounded-tl-none'}`}>
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+              <form onSubmit={sendMessage} className="p-4 border-t border-slate-800 flex gap-2 bg-slate-900/20">
+                <input type="text" placeholder="Mesaj yaz..." className="flex-1 bg-slate-800 border border-slate-700 rounded-2xl px-4 py-2 text-xs outline-none focus:border-rose-500 placeholder:text-slate-600 transition-all" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} />
+                <button type="submit" className="bg-rose-600 text-white w-10 h-10 rounded-2xl font-bold hover:scale-110 active:scale-90 transition-all shadow-lg flex items-center justify-center">❯</button>
+              </form>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* SAĞ TIK MENÜSÜ */}
+      {contextMenu && (
+        <div className="fixed z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-2 w-48 font-sans" style={{ top: contextMenu.y, left: contextMenu.x }}>
+          <button onClick={() => { socket.emit("send-nudge", contextMenu.userId); setContextMenu(null); }} className="w-full text-left p-3 hover:bg-amber-500 hover:text-slate-900 rounded-xl text-xs font-black transition-all mb-1">👉 DÜRT!</button>
+          <div className="p-3 border-t border-slate-800">
+            <label className="text-[9px] font-black text-slate-500 uppercase block mb-2">Kullanıcı Sesi</label>
+            <input type="range" min="0" max="1" step="0.1" className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500" value={userVolumes[contextMenu.userId] ?? 1} onChange={(e) => {
+                const vol = parseFloat(e.target.value);
+                setUserVolumes(prev => ({ ...prev, [contextMenu!.userId]: vol }));
+                if (remoteAudios.current[contextMenu!.userId]) remoteAudios.current[contextMenu!.userId].volume = vol;
+            }} />
+          </div>
+        </div>
+      )}
+    </div>
+  ); 
+}
