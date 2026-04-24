@@ -22,11 +22,22 @@ function buildCorsOriginValidator(allowedOrigins) {
   };
 }
 
+function resolveSocketListenPort() {
+  const rawSocket = process.env.SOCKET_PORT;
+  if (rawSocket != null && String(rawSocket).trim() !== "") {
+    const n = Number(rawSocket);
+    if (!Number.isNaN(n) && n > 0) {
+      return n;
+    }
+  }
+  return Number(process.env.PORT || 3001);
+}
+
 function loadEnvConfig() {
   const allowedOrigins = parseOrigins(process.env.ALLOWED_ORIGINS);
 
   return {
-    port: Number(process.env.PORT || 3001),
+    port: resolveSocketListenPort(),
     socketPath: process.env.SOCKET_PATH || "/socket.io",
     serverAuthToken: process.env.SOCKET_AUTH_TOKEN || "",
     clientAuthToken: process.env.NEXT_PUBLIC_SOCKET_AUTH_TOKEN || "",

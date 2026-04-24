@@ -41,6 +41,9 @@ export default function Home() {
   const [transferTarget, setTransferTarget] = useState("");
   const [archivedServers, setArchivedServers] = useState<any[]>([]);
   const [archivedRooms, setArchivedRooms] = useState<any[]>([]);
+  const [deployConfigWarning, setDeployConfigWarning] = useState<string | null>(null);
+  const [socketConnectionError, setSocketConnectionError] = useState<string | null>(null);
+  const [isSocketConnected, setIsSocketConnected] = useState(() => socket.connected);
 
   const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({});
   const remoteAudios = useRef<{ [key: string]: HTMLAudioElement }>({}); 
@@ -52,6 +55,49 @@ export default function Home() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    if (
+      !isLocal &&
+      (socketServerUrl.includes("localhost") || socketServerUrl.includes("127.0.0.1"))
+    ) {
+      setDeployConfigWarning(
+        "Vercel / üretim: Socket sunucusu adresi ayarlı değil. Vercel proje ayarlarına gerçek socket URL’sini NEXT_PUBLIC_SOCKET_SERVER_URL olarak ekleyip yeniden deploy edin. Socket backend’i ayrı bir sunucuda (Railway, Render, Fly vb.) çalıştırmanız gerekir."
+      );
+      return;
+    }
+    if (!isLocal && window.location.protocol === "https:" && socketServerUrl.startsWith("http:")) {
+      setDeployConfigWarning(
+        "Sayfa HTTPS üzerinden açılıyor ama socket adresi HTTP. Tarayıcı engelleyebilir. NEXT_PUBLIC_SOCKET_SERVER_URL için https://… (TLS’li socket sunucusu) kullanın."
+      );
+      return;
+    }
+    setDeployConfigWarning(null);
+  }, []);
+
+  useEffect(() => {
+    const onConnectError = (err: Error) => {
+      setSocketConnectionError(err?.message || "Socket bağlantısı kurulamadı");
+      setIsSocketConnected(false);
+    };
+    const onConnectOk = () => {
+      setSocketConnectionError(null);
+      setIsSocketConnected(true);
+    };
+    const onDisconnect = () => setIsSocketConnected(false);
+    socket.on("connect_error", onConnectError);
+    socket.on("connect", onConnectOk);
+    socket.on("disconnect", onDisconnect);
+    setIsSocketConnected(socket.connected);
+    return () => {
+      socket.off("connect_error", onConnectError);
+      socket.off("connect", onConnectOk);
+      socket.off("disconnect", onDisconnect);
+    };
+  }, []);
 
   useEffect(() => {
     socket.on("server-list", (serverList) => {
@@ -378,9 +424,19 @@ export default function Home() {
   );
   const roomsToRender = filteredRooms.length > 0 ? filteredRooms : activeRooms;
 
+  const connectionBanner =
+    deployConfigWarning || (!isSocketConnected && socketConnectionError) ? (
+      <div className="bg-amber-900/90 text-amber-100 text-xs font-bold px-4 py-3 border-b border-amber-700 shrink-0">
+        {deployConfigWarning ||
+          `Socket: ${socketConnectionError} — sunucu çalışıyor mu ve CORS (ALLOWED_ORIGINS) Vercel URL’nizi içeriyor mu kontrol edin.`}
+      </div>
+    ) : null;
+
   if (!isJoined) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white font-sans">
+      <div className="min-h-screen bg-slate-950 flex flex-col text-white font-sans">
+        {connectionBanner}
+        <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-sm bg-slate-900 p-10 rounded-[40px] shadow-2xl border border-slate-800">
           <h1 className="text-4xl font-black text-rose-500 text-center mb-8 tracking-tighter cursor-default">Dumbasscord</h1>
           <input 
@@ -390,12 +446,15 @@ export default function Home() {
           />
           <button onClick={() => userName.trim() && setIsJoined(true)} className="w-full mt-6 bg-rose-600 text-white p-5 rounded-3xl font-black text-lg hover:bg-rose-700 transform active:scale-95 transition-all shadow-lg">BAĞLAN</button>
         </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`flex h-screen bg-slate-950 text-white font-sans overflow-hidden transition-all duration-100 ${isNudged ? 'translate-x-2 translate-y-2 scale-[1.01]' : ''}`}>
+    <div className={`flex flex-col h-screen bg-slate-950 text-white font-sans overflow-hidden transition-all duration-100 ${isNudged ? 'translate-x-2 translate-y-2 scale-[1.01]' : ''}`}>
+      {connectionBanner}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* SIDEBAR */}
       <div className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
         <div className="p-6 border-b border-slate-800">
@@ -557,6 +616,7 @@ export default function Home() {
             </div>
           </>
         )}
+      </div>
       </div>
 
       {/* SAĞ TIK MENÜSÜ */}

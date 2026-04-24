@@ -52,6 +52,14 @@ function buildPersistedRoomId(serverId, roomName) {
   return `${serverId}::${roomName}`;
 }
 
+/** JsonStore uses `id`; PrismaStore uses `serverId`. */
+function storeServerKey(server) {
+  if (!server) {
+    return "default";
+  }
+  return server.serverId || server.id || "default";
+}
+
 function parsePersistedRoomId(persistedRoomId) {
   if (
     persistedRoomId.startsWith("__server__:") ||
@@ -73,8 +81,8 @@ function parsePersistedRoomId(persistedRoomId) {
 async function emitServerList(io, store, targetSocket = null) {
   const servers = (await store.listServers?.()) || [];
   const normalized = servers.map((server) => ({
-    id: server.serverId || "default",
-    name: server.name || server.serverId || "default",
+    id: storeServerKey(server),
+    name: server.name || storeServerKey(server),
     description: server.description || "",
     isDeleted: Boolean(server.deletedAt),
   }));
@@ -142,8 +150,8 @@ async function emitArchivedState(io, store, targetSocket = null) {
   const archivedServers = ((await store.listServers({ includeDeleted: true })) || [])
     .filter((server) => Boolean(server.deletedAt))
     .map((server) => ({
-      id: server.serverId,
-      name: server.name || server.serverId,
+      id: storeServerKey(server),
+      name: server.name || storeServerKey(server),
       description: server.description || "",
     }));
 
