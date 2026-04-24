@@ -80,7 +80,17 @@ export default function Home() {
 
   useEffect(() => {
     const onConnectError = (err: Error) => {
-      setSocketConnectionError(err?.message || "Socket bağlantısı kurulamadı");
+      const base = err?.message || "Socket bağlantısı kurulamadı";
+      const t = String(base).toLowerCase();
+      let hint = "";
+      if (t.includes("404")) {
+        hint =
+          " — Railway’de `npm start` ile Next `PORT`ta ise `/socket.io` genelde Next’ten 404 döner; socket için `npm run start:socket:only` veya `INTERNAL_SOCKET_PROXY_URL` + aynı origin (bkz. README).";
+      } else if (t.includes("308") || t.includes("redirect")) {
+        hint =
+          " — 308: `NEXT_PUBLIC_SOCKET_SERVER_URL` yönlendirme yapmayan kanonik `https://…` adresi olmalı.";
+      }
+      setSocketConnectionError(base + hint);
       setIsSocketConnected(false);
     };
     const onConnectOk = () => {
@@ -461,7 +471,7 @@ export default function Home() {
     deployConfigWarning || (!isSocketConnected && socketConnectionError) ? (
       <div className="bg-amber-900/90 text-amber-100 text-xs font-bold px-4 py-3 border-b border-amber-700 shrink-0">
         {deployConfigWarning ||
-          `Socket: ${socketConnectionError} — sunucu çalışıyor mu ve CORS (ALLOWED_ORIGINS) Vercel URL’nizi içeriyor mu kontrol edin.`}
+          `Socket: ${socketConnectionError} — CORS için Railway’de ALLOWED_ORIGINS (ör. tam Vercel URL + isteğe bağlı https://*.vercel.app).`}
       </div>
     ) : null;
 
