@@ -154,8 +154,17 @@ export default function Home() {
         };
         checkVolume();
       }
-      setCurrentRoom(roomName);
-      socket.emit("join-room", { roomId: roomName, userName, serverId: currentServer });
+      socket.emit(
+        "join-room",
+        { roomId: roomName, userName, serverId: currentServer },
+        (res: any) => {
+          if (res?.ok) {
+            setCurrentRoom(roomName);
+          } else if (res?.error) {
+            alert(res.error);
+          }
+        }
+      );
     } catch (err) { alert("Mikrofon hatası!"); }
   };
 
@@ -165,6 +174,8 @@ export default function Home() {
     socket.emit("create-server", { serverName: value, userName }, (res: any) => {
       if (res?.ok && res.serverId) {
         setCurrentServer(res.serverId);
+      } else if (res?.error) {
+        alert(res.error);
       }
     });
     setNewServerName("");
@@ -180,6 +191,8 @@ export default function Home() {
         if (res?.ok) {
           await handleJoinRoom(value);
           setNewRoomName("");
+        } else if (res?.error) {
+          alert(res.error);
         }
       }
     );
@@ -210,7 +223,11 @@ export default function Home() {
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (newMessage.trim()) {
-      socket.emit("send-message", { text: newMessage });
+      socket.emit("send-message", { text: newMessage }, (res: any) => {
+        if (!res?.ok && res?.error) {
+          alert(res.error);
+        }
+      });
       setNewMessage("");
     }
   };
@@ -219,6 +236,10 @@ export default function Home() {
     users.find((u) => u.id === socket.id)?.role ||
     users.find((u) => u.name === userName)?.role ||
     "member";
+  const filteredRooms = activeRooms.filter(
+    (room) => (room.serverId || "default") === currentServer
+  );
+  const roomsToRender = filteredRooms.length > 0 ? filteredRooms : activeRooms;
 
   if (!isJoined) {
     return (
@@ -248,9 +269,7 @@ export default function Home() {
           <div>
             <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Odalar</h3>
             <div className="space-y-1">
-              {activeRooms
-                .filter((room) => (room.serverId || "default") === currentServer)
-                .map(room => (
+              {roomsToRender.map(room => (
                 <button key={room.name} onClick={() => handleJoinRoom(room.name)} className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
                   <span># {room.name}</span>
                   <span className="text-[10px] bg-slate-700 px-2 rounded-full">{room.count}</span>
