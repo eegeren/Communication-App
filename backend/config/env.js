@@ -1,5 +1,11 @@
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:3000"];
 
+/** ALLOWED_ORIGINS entry: allow any https deployment on vercel.app (previews + production). */
+const VERCEL_WILDCARD_MARKERS = new Set([
+  "https://*.vercel.app",
+  "*.vercel.app",
+]);
+
 function parseOrigins(originsValue) {
   if (!originsValue) {
     return DEFAULT_ALLOWED_ORIGINS;
@@ -11,14 +17,49 @@ function parseOrigins(originsValue) {
     .filter(Boolean);
 }
 
+function isHttpsVercelAppOrigin(origin) {
+  try {
+    const u = new URL(origin);
+    return (
+      u.protocol === "https:" &&
+      (u.hostname === "vercel.app" || u.hostname.endsWith(".vercel.app"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function originAllowedByList(origin, allowedOrigins) {
+  if (!origin) {
+    return true;
+  }
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+  for (const entry of allowedOrigins) {
+    if (VERCEL_WILDCARD_MARKERS.has(entry) && isHttpsVercelAppOrigin(origin)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function buildCorsOriginValidator(allowedOrigins) {
   return (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
+    try {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (originAllowedByList(origin, allowedOrigins)) {
+        // credentials: true requires a concrete ACAO value, not "*"
+        callback(null, origin);
+        return;
+      }
+      callback(new Error("Origin not allowed by CORS"));
+    } catch (e) {
+      callback(e);
     }
-
-    callback(new Error("Origin not allowed by CORS"));
   };
 }
 
