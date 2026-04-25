@@ -14,6 +14,11 @@ async function start() {
       console.log(`🚀 Dumbasscord Motoru Aktif!`);
       console.log(`📍 Port: ${env.port}`);
       console.log(`📦 Store: ${storeKind}`);
+      console.log(`🧭 HTTP Routes:`);
+      console.log(`   - GET /healthz`);
+      console.log(`   - GET /__backend-signature`);
+      console.log(`   - POST /auth/register`);
+      console.log(`   - POST /auth/login`);
       console.log(`-----------------------------------------`);
     });
 
