@@ -104,7 +104,6 @@ export default function Home() {
   const createPeer = (targetId: string, isInitiator: boolean) => {
     if (peerConnections.current[targetId]) return peerConnections.current[targetId];
     const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-    
     pc.onicecandidate = (e) => e.candidate && socket.emit("ice-candidate", { candidate: e.candidate, to: targetId });
     pc.ontrack = (e) => {
       if (e.track.kind === "video") {
@@ -118,7 +117,6 @@ export default function Home() {
         document.body.appendChild(audio);
       }
     };
-
     pc.onnegotiationneeded = async () => {
         try {
             if (isInitiator) {
@@ -128,10 +126,8 @@ export default function Home() {
             }
         } catch (err) {}
     };
-
     localStream.current?.getTracks().forEach(t => pc.addTrack(t, localStream.current!));
     if (screenStream.current) screenStream.current.getTracks().forEach(t => pc.addTrack(t, screenStream.current!));
-    
     peerConnections.current[targetId] = pc;
     return pc;
   };
@@ -261,9 +257,14 @@ export default function Home() {
             className={`absolute top-0 w-1/2 h-full bg-gradient-to-br from-rose-600 to-rose-900 z-20 transition-all duration-700 ease-in-out flex flex-col items-center justify-center text-white px-14 text-center
             ${isLoginActive ? 'left-1/2 rounded-l-[120px]' : 'left-0 rounded-r-[120px]'}`}
           >
-            <h1 className="text-5xl font-black tracking-tighter mb-10 leading-none">
-              {isLoginActive ? "MERHABA,\nDUMBASS!" : "TEKRAR\nSELAM!"}
+            <h1 className="text-5xl font-black tracking-tighter mb-6 leading-none uppercase">
+              {isLoginActive ? "TEKRAR\nSELAM!" : "MERHABA,\nDUMBASS!"}
             </h1>
+            <p className="text-rose-100 text-base mb-10 font-medium leading-relaxed">
+              {isLoginActive 
+                ? "Zaten bu çılgın topluluğun bir parçasıysan, hemen giriş yap ve kaldığın yerden devam et." 
+                : "Henüz bir hesabın yoksa, kaosun ve eğlencenin merkezine katılmak için hemen kayıt ol!"}
+            </p>
             <button 
               onClick={() => setIsLoginActive(!isLoginActive)}
               className="border-[3px] border-white px-12 py-4 rounded-full font-black uppercase text-sm hover:bg-white hover:text-rose-700 transition-all active:scale-90 shadow-2xl"
@@ -277,7 +278,7 @@ export default function Home() {
     );
   }
 
-  // --- CHAT EKRANI ---
+  // --- CHAT EKRANI (ORİJİNAL TASARIM) ---
   return (
     <div className={`flex h-screen bg-slate-950 text-white font-sans overflow-hidden transition-all duration-100 ${isNudged ? 'translate-x-2 translate-y-2 scale-[1.01]' : ''}`}>
       <div className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
