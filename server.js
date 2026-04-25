@@ -1,10 +1,28 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 require("dotenv").config();
+const { execFileSync } = require("child_process");
 const { loadEnvConfig } = require("./backend/config/env");
 const { createRealtimeServer } = require("./backend/createRealtimeServer");
 
+function syncDatabaseSchemaIfNeeded() {
+  const databaseUrl = process.env.DATABASE_URL || "";
+  if (!databaseUrl) {
+    return;
+  }
+
+  const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
+  console.log("🗄️ Prisma schema senkronu başlatılıyor (db push)...");
+  execFileSync(
+    npxCommand,
+    ["prisma", "db", "push", "--skip-generate"],
+    { stdio: "inherit" }
+  );
+  console.log("✅ Prisma schema senkronu tamamlandı.");
+}
+
 async function start() {
   try {
+    syncDatabaseSchemaIfNeeded();
     const env = loadEnvConfig();
     const { httpServer, storeKind } = await createRealtimeServer(env);
 
