@@ -16,8 +16,8 @@ const socket = io(socketServerUrl, {
 });
 
 export default function Home() {
-  // AUTH DURUMLARI (KAYAN PANEL İÇİN)
-  const [isLoginActive, setIsLoginActive] = useState(true); 
+  // AUTH VE PANEL DURUMLARI
+  const [isLoginActive, setIsLoginActive] = useState(true); // Panel kaydırma kontrolü
   const [isJoined, setIsJoined] = useState(false); // Chat'e giriş kontrolü
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -144,6 +144,7 @@ export default function Home() {
     return pc;
   };
 
+  // HATA VEREN FONKSİYON BURADA:
   const handleContextMenu = (e: React.MouseEvent, userId: string) => {
     e.preventDefault();
     if (userId === socket.id) return;
@@ -240,49 +241,49 @@ export default function Home() {
   // --- KAYAN AUTH EKRANI ---
   if (!isJoined) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans">
-        <div className="relative w-[850px] h-[550px] bg-slate-900 rounded-[50px] overflow-hidden shadow-2xl border border-slate-800 flex">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans overflow-hidden">
+        <div className="relative w-full max-w-[900px] h-[600px] bg-slate-900 rounded-[60px] overflow-hidden shadow-2xl border border-slate-800 flex">
           
-          {/* Overlay Panel (Kayan Kırmızı Kısım) */}
-          <div 
-            className={`absolute top-0 w-1/2 h-full bg-gradient-to-br from-rose-600 to-rose-800 z-30 transition-all duration-700 ease-in-out flex flex-col items-center justify-center text-white px-12 text-center
-            ${isLoginActive ? 'left-0 rounded-r-[100px]' : 'left-1/2 rounded-l-[100px]'}`}
-          >
-            <h1 className="text-4xl font-black tracking-tighter mb-4">
-              {isLoginActive ? "Merhaba, Dumbass!" : "Tekrar Selam!"}
-            </h1>
-            <p className="text-rose-100 text-sm mb-8">
-              {isLoginActive ? "Hesabın yoksa hemen oluştur ve kaosa ortak ol." : "Zaten buralardaysan hemen giriş yap ve sohbete başla."}
-            </p>
-            <button 
-              onClick={() => setIsLoginActive(!isLoginActive)}
-              className="border-2 border-white px-10 py-3 rounded-full font-black uppercase text-xs hover:bg-white hover:text-rose-600 transition-all active:scale-95"
-            >
-              {isLoginActive ? "KAYIT OL" : "GİRİŞ YAP"}
-            </button>
-          </div>
-
-          {/* Giriş Formu (Sağda) */}
-          <div className={`w-1/2 h-full flex flex-col items-center justify-center p-12 transition-all duration-700 ${isLoginActive ? 'ml-auto' : 'opacity-0 pointer-events-none'}`}>
-            <h2 className="text-3xl font-black text-rose-500 mb-8 uppercase tracking-tighter">Giriş Yap</h2>
-            <div className="w-full space-y-4">
+          {/* 1. GİRİŞ FORMU (SOLDA) */}
+          <div className={`w-1/2 h-full flex flex-col items-center justify-center p-14 transition-all duration-700 ease-in-out z-10 ${!isLoginActive ? 'translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
+            <h2 className="text-4xl font-black text-rose-500 mb-10 uppercase tracking-tighter">Giriş Yap</h2>
+            <div className="w-full space-y-5">
               <input type="email" placeholder="E-posta" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all" value={email} onChange={(e) => setEmail(e.target.value)} />
               <input type="password" placeholder="Şifre" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <button onClick={() => { if(email && password) { setUserName(email.split('@')[0]); setIsJoined(true); }}} className="w-full bg-rose-600 text-white p-4 rounded-2xl font-black hover:bg-rose-700 shadow-lg active:scale-95 transition-all">BAĞLAN</button>
-              <button onClick={() => setIsLoginActive(false)} className="w-full text-center text-slate-500 text-xs mt-4 hover:text-rose-500 font-bold transition-colors underline decoration-dotted">Hesabın yok mu? Kayıt Ol</button>
+              <button onClick={() => { if(email && password) { setUserName(email.split('@')[0]); setIsJoined(true); }}} className="w-full bg-rose-600 text-white p-5 rounded-2xl font-black text-lg hover:bg-rose-700 shadow-xl active:scale-95 transition-all">BAĞLAN</button>
+              <button onClick={() => setIsLoginActive(false)} className="w-full text-center text-slate-400 text-sm mt-4 hover:text-rose-500 font-bold transition-colors">Hesabın yok mu? <span className="underline">Kayıt Ol</span></button>
             </div>
           </div>
 
-          {/* Kayıt Formu (Solda) */}
-          <div className={`w-1/2 h-full flex flex-col items-center justify-center p-12 transition-all duration-700 ${!isLoginActive ? 'mr-auto' : 'opacity-0 pointer-events-none'}`}>
-            <h2 className="text-3xl font-black text-sky-500 mb-8 uppercase tracking-tighter">Kayıt Ol</h2>
-            <div className="w-full space-y-4">
+          {/* 2. KAYIT FORMU (SAĞDA) */}
+          <div className={`w-1/2 h-full flex flex-col items-center justify-center p-14 transition-all duration-700 ease-in-out z-10 ${isLoginActive ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
+            <h2 className="text-4xl font-black text-sky-500 mb-10 uppercase tracking-tighter">Kayıt Ol</h2>
+            <div className="w-full space-y-5">
               <input type="text" placeholder="Takma Ad" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all" value={userName} onChange={(e) => setUserName(e.target.value)} />
               <input type="email" placeholder="E-posta" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all" value={email} onChange={(e) => setEmail(e.target.value)} />
               <input type="password" placeholder="Şifre" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <button onClick={() => { if(userName && email && password) setIsLoginActive(true); }} className="w-full bg-sky-600 text-white p-4 rounded-2xl font-black hover:bg-sky-700 shadow-lg active:scale-95 transition-all">KAYIT OL</button>
-              <button onClick={() => setIsLoginActive(true)} className="w-full text-center text-slate-500 text-xs mt-4 hover:text-sky-500 font-bold transition-colors underline decoration-dotted">Zaten üye misin? Giriş Yap</button>
+              <button onClick={() => { if(userName && email && password) setIsLoginActive(true); }} className="w-full bg-sky-600 text-white p-5 rounded-2xl font-black text-lg hover:bg-sky-700 shadow-xl active:scale-95 transition-all">HESAP OLUŞTUR</button>
+              <button onClick={() => setIsLoginActive(true)} className="w-full text-center text-slate-400 text-sm mt-4 hover:text-sky-500 font-bold transition-colors">Zaten üye misin? <span className="underline">Giriş Yap</span></button>
             </div>
+          </div>
+
+          {/* 3. KAYAN OVERLAY (KIRMIZI PANEL) */}
+          <div 
+            className={`absolute top-0 w-1/2 h-full bg-gradient-to-br from-rose-600 to-rose-900 z-20 transition-all duration-700 ease-in-out flex flex-col items-center justify-center text-white px-14 text-center
+            ${isLoginActive ? 'left-1/2 rounded-l-[120px]' : 'left-0 rounded-r-[120px]'}`}
+          >
+            <h1 className="text-5xl font-black tracking-tighter mb-6 leading-none">
+              {isLoginActive ? "MERHABA,\nDUMBASS!" : "TEKRAR\nSELAM!"}
+            </h1>
+            <p className="text-rose-100 text-base mb-10 font-medium leading-relaxed">
+              {isLoginActive ? "Henüz bir hesabın yoksa, hemen kayıt ol ve aramıza katıl!" : "Zaten bu çılgın topluluğun bir parçasıysan, hemen giriş yap."}
+            </p>
+            <button 
+              onClick={() => setIsLoginActive(!isLoginActive)}
+              className="border-[3px] border-white px-12 py-4 rounded-full font-black uppercase text-sm hover:bg-white hover:text-rose-700 transition-all active:scale-90"
+            >
+              {isLoginActive ? "Kayıt Olmaya Git" : "Giriş Yapmaya Git"}
+            </button>
           </div>
 
         </div>
