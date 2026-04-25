@@ -36,6 +36,13 @@ type ProfileState = {
   avatarUrl?: string | null;
   status: ProfileStatus;
 };
+type DialogState =
+  | { type: "create-server" }
+  | { type: "create-room" }
+  | { type: "delete-server"; serverId: string; serverName: string }
+  | { type: "delete-room"; roomName: string }
+  | { type: "clear-all" }
+  | null;
 
 export default function Home() {
   const [isJoined, setIsJoined] = useState(false);
@@ -58,6 +65,8 @@ export default function Home() {
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [dialogInput, setDialogInput] = useState("");
 
   const localStream = useRef<MediaStream | null>(null);
   const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({});
@@ -268,24 +277,80 @@ export default function Home() {
     });
   };
 
-  const handleCreateRoom = () => {
-    const roomName = prompt("Yeni kanal adı:");
-    if (!roomName?.trim()) return;
+  const submitCreateRoom = (roomName: string) => {
     socket.emit("create-room", { serverId: currentServer, roomName: roomName.trim(), userName }, (res: { ok?: boolean; error?: string }) => {
       if (!res?.ok) {
         alert(res?.error || "Kanal oluşturulamadı.");
+        return;
       }
+      setDialog(null);
+      setDialogInput("");
     });
   };
 
-  const handleDeleteRoom = (roomName: string) => {
-    const ok = confirm(`#${roomName} kanalını silmek istediğine emin misin?`);
-    if (!ok) return;
+  const submitDeleteRoom = (roomName: string) => {
     socket.emit("delete-room", { serverId: currentServer, roomName, userName }, (res: { ok?: boolean; error?: string }) => {
       if (!res?.ok) {
         alert(res?.error || "Kanal silinemedi.");
+        return;
       }
+      if (currentRoom === roomName) {
+        setCurrentRoom("");
+      }
+      setDialog(null);
     });
+  };
+
+  const submitCreateServer = (serverName: string) => {
+    socket.emit(
+      "create-server",
+      { serverName: serverName.trim(), userName },
+      (res: { ok?: boolean; error?: string; serverId?: string }) => {
+        if (!res?.ok) {
+          alert(res?.error || "Sunucu oluşturulamadı.");
+          return;
+        }
+        if (res.serverId) {
+          setCurrentServer(res.serverId);
+        }
+        setDialog(null);
+        setDialogInput("");
+      }
+    );
+  };
+
+  const submitDeleteServer = (serverId: string) => {
+    socket.emit(
+      "delete-server",
+      { serverId, actorUserName: userName },
+      (res: { ok?: boolean; error?: string }) => {
+        if (!res?.ok) {
+          alert(res?.error || "Sunucu silinemedi.");
+          return;
+        }
+        if (currentServer === serverId) {
+          setCurrentServer("default");
+          setCurrentRoom("");
+        }
+        setDialog(null);
+      }
+    );
+  };
+
+  const submitClearAll = () => {
+    const allRooms = activeRooms.filter((room) => room.name !== "genel");
+    const nonDefaultServers = servers.filter((server) => server.id !== "default");
+
+    allRooms.forEach((room) => {
+      socket.emit("delete-room", { serverId: room.serverId || "default", roomName: room.name, userName });
+    });
+    nonDefaultServers.forEach((server) => {
+      socket.emit("delete-server", { serverId: server.id, actorUserName: userName });
+    });
+
+    setCurrentServer("default");
+    setCurrentRoom("");
+    setDialog(null);
   };
 
   const toggleDeafen = () => {
@@ -429,15 +494,30 @@ export default function Home() {
         onSave={handleProfileSave}
       />
 
-      <ServerList servers={servers} currentServer={currentServer} setCurrentServer={handleServerChange} socket={socket} userName={userName} />
+      <ServerList
+        servers={servers}
+        currentServer={currentServer}
+        setCurrentServer={handleServerChange}
+        onRequestCreateServer={() => {
+          setDialogInput("");
+          setDialog({ type: "create-server" });
+        }}
+        onRequestDeleteServer={(serverId: string, serverName: string) =>
+          setDialog({ type: "delete-server", serverId, serverName })
+        }
+        onRequestClearAll={() => setDialog({ type: "clear-all" })}
+      />
 
       <div className="w-72 min-w-72 h-full flex flex-col border-r border-slate-800">
         <ChannelList
           rooms={activeRooms.filter((r) => (r.serverId || "default") === currentServer)}
           currentRoom={currentRoom}
           handleJoinRoom={handleJoinRoom}
-          handleCreateRoom={handleCreateRoom}
-          handleDeleteRoom={handleDeleteRoom}
+          handleCreateRoom={() => {
+            setDialogInput("");
+            setDialog({ type: "create-room" });
+          }}
+          handleDeleteRoom={(roomName: string) => setDialog({ type: "delete-room", roomName })}
           currentUserId={socket.id || ""}
           users={users}
           userName={userName}
@@ -459,6 +539,98 @@ export default function Home() {
           typingLabel={typingLabel}
         />
       </div>
+
+      {dialog ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl p-6">
+            {(dialog.type === "create-server" || dialog.type === "create-room") ? (
+              <>
+                <h3 className="text-xl font-black text-white mb-2">
+                  {dialog.type === "create-server" ? "Yeni Sunucu Oluştur" : "Yeni Oda Oluştur"}
+                </h3>
+                <p className="text-sm text-slate-400 mb-4">
+                  {dialog.type === "create-server"
+                    ? "Sunucuna kısa ve akılda kalıcı bir isim ver."
+                    : "Bu sunucu için yeni oda adı gir."}
+                </p>
+                <input
+                  autoFocus
+                  type="text"
+                  value={dialogInput}
+                  onChange={(e) => setDialogInput(e.target.value)}
+                  placeholder={dialog.type === "create-server" ? "Örn: Gölge Takım" : "Örn: genel-sohbet"}
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950 p-3 text-white outline-none focus:border-rose-500"
+                />
+                <div className="mt-6 flex gap-3 justify-end">
+                  <button
+                    onClick={() => setDialog(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    onClick={() => {
+                      const value = dialogInput.trim();
+                      if (!value) {
+                        return;
+                      }
+                      if (dialog.type === "create-server") {
+                        submitCreateServer(value);
+                        return;
+                      }
+                      submitCreateRoom(value);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-500 font-bold"
+                  >
+                    Oluştur
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-black text-white mb-2">
+                  {dialog.type === "delete-server"
+                    ? "Sunucuyu Sil"
+                    : dialog.type === "delete-room"
+                      ? "Odayı Sil"
+                      : "Hepsini Temizle"}
+                </h3>
+                <p className="text-sm text-slate-400 mb-6">
+                  {dialog.type === "delete-server"
+                    ? `#${dialog.serverName} sunucusunu arşive göndereceğiz.`
+                    : dialog.type === "delete-room"
+                      ? `#${dialog.roomName} odasını arşive göndereceğiz.`
+                      : "Tüm sunucular ve odalar temizlenecek. Bu işlem geri alınamaz."}
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setDialog(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (dialog.type === "delete-server") {
+                        submitDeleteServer(dialog.serverId);
+                        return;
+                      }
+                      if (dialog.type === "delete-room") {
+                        submitDeleteRoom(dialog.roomName);
+                        return;
+                      }
+                      submitClearAll();
+                    }}
+                    className="px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-500 font-bold"
+                  >
+                    Sil
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

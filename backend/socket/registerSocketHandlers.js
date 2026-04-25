@@ -579,7 +579,7 @@ function registerSocketHandlers(io, { state, store, env }) {
     socket.on("delete-server", async (payload, ack) => {
       try {
         const { serverId, actorUserName } = parseOrThrow(
-          roleChangeSchema,
+          updateServerSettingsSchema.pick({ serverId: true, actorUserName: true }),
           payload,
           "delete-server"
         );
