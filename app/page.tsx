@@ -283,20 +283,18 @@ export default function Home() {
             <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Odalar</h3>
             <div className="space-y-1">
               {roomsToRender.map(room => (
-                <div key={room.name} className="group flex items-center gap-2">
+                <div key={room.name} className="flex items-center gap-2 pr-2">
                   <button onClick={() => handleJoinRoom(room.name)} className={`flex-1 flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
                     <span># {room.name}</span>
                     <span className="text-[10px] bg-slate-700 px-2 rounded-full">{room.count}</span>
                   </button>
-                  {/* ODA SİLME BUTONU */}
-                  {myRole === "owner" && (
-                    <button 
-                      onClick={() => confirm(`${room.name} odasını silmek istediğine emin misin?`) && socket.emit("delete-room", { serverId: currentServer, roomName: room.name, userName })}
-                      className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all shrink-0"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                    </button>
-                  )}
+                  {/* HERKESE GÖRÜNÜR SİLME BUTONU */}
+                  <button 
+                    onClick={() => confirm(`${room.name} odasını silmek istediğine emin misin?`) && socket.emit("delete-room", { serverId: currentServer, roomName: room.name, userName })}
+                    className="p-2 text-rose-500 hover:bg-rose-500/20 rounded-xl transition-all shrink-0"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  </button>
                 </div>
               ))}
             </div>
@@ -305,17 +303,17 @@ export default function Home() {
             <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Sunucular</h3>
             <div className="space-y-1">
               {servers.map((server) => (
-                <div key={server.id} className="group flex items-center gap-2">
+                <div key={server.id} className="flex items-center gap-2 pr-2">
                   <button onClick={() => setCurrentServer(server.id)} className={`flex-1 text-left p-3 rounded-2xl text-xs font-bold transition-all ${currentServer === server.id ? "bg-rose-600 text-white" : "text-slate-300 hover:bg-slate-800"}`}>
                     {server.name}
                   </button>
-                  {/* SUNUCU SİLME BUTONU */}
-                  {myRole === "owner" && server.id !== "default" && (
+                  {/* HERKESE GÖRÜNÜR SİLME BUTONU */}
+                  {server.id !== "default" && (
                     <button 
                       onClick={() => confirm(`${server.name} sunucusunu silmek istediğine emin misin?`) && socket.emit("delete-server", { serverId: server.id, userName })}
-                      className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all shrink-0"
+                      className="p-2 text-rose-500 hover:bg-rose-500/20 rounded-xl transition-all shrink-0"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                     </button>
                   )}
                 </div>
