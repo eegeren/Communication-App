@@ -223,16 +223,27 @@ export default function Home() {
     }
   };
 
+  // --- KULAKLIK VE MİKROFON KONTROLÜ ---
   const toggleDeafen = () => {
-    const newStatus = !isDeafened;
-    setIsDeafened(newStatus);
-    socket.emit("deafen-status", newStatus);
+    const newDeafenStatus = !isDeafened;
+    setIsDeafened(newDeafenStatus);
+    
+    // Kulaklık kapatılıyorsa mikrofonu da kapat
+    if (newDeafenStatus) {
+        setIsMuted(true);
+        const track = localStream.current?.getAudioTracks()[0];
+        if (track) track.enabled = false;
+        socket.emit("mute-status", true);
+    }
+    
+    socket.emit("deafen-status", newDeafenStatus);
     Object.values(remoteAudios.current).forEach(audio => {
-        audio.muted = newStatus;
+        audio.muted = newDeafenStatus;
     });
   };
 
   const toggleMute = () => {
+    if (isDeafened) return; // Kulaklık kapalıyken mikrofon açılamaz
     const newStatus = !isMuted;
     setIsMuted(newStatus);
     const track = localStream.current?.getAudioTracks()[0];
@@ -244,39 +255,37 @@ export default function Home() {
   const filteredRooms = activeRooms.filter((room) => (room.serverId || "default") === currentServer);
   const roomsToRender = filteredRooms.length > 0 ? filteredRooms : activeRooms;
 
-  // --- AUTH EKRANI ---
   if (!isJoined) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans overflow-hidden">
-        <div className="relative w-full max-w-[900px] h-[600px] bg-slate-900 rounded-[60px] overflow-hidden shadow-2xl border border-slate-800 flex">
-          <div className={`w-1/2 h-full flex flex-col items-center justify-center p-14 transition-all duration-700 ease-in-out z-10 ${!isLoginActive ? 'translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
-            <h2 className="text-4xl font-black text-rose-500 mb-10 uppercase tracking-tighter">Giriş Yap</h2>
-            <div className="w-full space-y-5">
-              <input type="email" placeholder="E-posta" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all placeholder:text-slate-500" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <input type="password" placeholder="Şifre" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all placeholder:text-slate-500" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <button onClick={() => { if(email && password) { setUserName(email.split('@')[0]); setIsJoined(true); }}} className="w-full bg-rose-600 text-white p-5 rounded-2xl font-black text-lg hover:bg-rose-700 shadow-xl active:scale-95 transition-all">BAĞLAN</button>
+        <div className="relative w-[850px] h-[550px] bg-slate-900 rounded-[50px] overflow-hidden shadow-2xl border border-slate-800 flex">
+          <div className={`w-1/2 h-full flex flex-col items-center justify-center p-12 transition-all duration-700 ${isLoginActive ? 'ml-auto' : 'opacity-0 pointer-events-none'}`}>
+            <h2 className="text-3xl font-black text-rose-500 mb-8 uppercase tracking-tighter">Giriş Yap</h2>
+            <div className="w-full space-y-4">
+              <input type="email" placeholder="E-posta" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input type="password" placeholder="Şifre" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <button onClick={() => { if(email && password) { setUserName(email.split('@')[0]); setIsJoined(true); }}} className="w-full bg-rose-600 text-white p-4 rounded-2xl font-black hover:bg-rose-700 shadow-lg active:scale-95 transition-all">BAĞLAN</button>
             </div>
           </div>
-          <div className={`w-1/2 h-full flex flex-col items-center justify-center p-14 transition-all duration-700 ease-in-out z-10 ${isLoginActive ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
-            <h2 className="text-4xl font-black text-sky-500 mb-10 uppercase tracking-tighter">Kayıt Ol</h2>
-            <div className="w-full space-y-5">
-              <input type="text" placeholder="Takma Ad" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all placeholder:text-slate-500" value={userName} onChange={(e) => setUserName(e.target.value)} />
-              <input type="email" placeholder="E-posta" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all placeholder:text-slate-500" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <input type="password" placeholder="Şifre" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all placeholder:text-slate-500" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <button onClick={() => { if(userName && email && password) setIsLoginActive(true); }} className="w-full bg-sky-600 text-white p-5 rounded-2xl font-black text-lg hover:bg-sky-700 shadow-xl active:scale-95 transition-all">HESAP OLUŞTUR</button>
+          <div className={`w-1/2 h-full flex flex-col items-center justify-center p-12 transition-all duration-700 ${!isLoginActive ? 'mr-auto' : 'opacity-0 pointer-events-none'}`}>
+            <h2 className="text-3xl font-black text-sky-500 mb-8 uppercase tracking-tighter">Kayıt Ol</h2>
+            <div className="w-full space-y-4">
+              <input type="text" placeholder="Takma Ad" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all" value={userName} onChange={(e) => setUserName(e.target.value)} />
+              <input type="email" placeholder="E-posta" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input type="password" placeholder="Şifre" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none focus:border-sky-500 transition-all" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <button onClick={() => { if(userName && email && password) setIsLoginActive(true); }} className="w-full bg-sky-600 text-white p-4 rounded-2xl font-black hover:bg-sky-700 shadow-lg active:scale-95 transition-all">KAYIT OL</button>
             </div>
           </div>
-          <div className={`absolute top-0 w-1/2 h-full bg-gradient-to-br from-rose-600 to-rose-900 z-20 transition-all duration-700 ease-in-out flex flex-col items-center justify-center text-white px-14 text-center ${isLoginActive ? 'left-1/2 rounded-l-[120px]' : 'left-0 rounded-r-[120px]'}`}>
-            <h1 className="text-5xl font-black tracking-tighter mb-10 leading-none uppercase">{isLoginActive ? "TEKRAR\nSELAM!" : "MERHABA,\nDUMBASS!"}</h1>
-            <p className="text-rose-100 text-base mb-10 font-medium leading-relaxed">{isLoginActive ? "Zaten bu çılgın topluluğun bir parçasıysan, hemen giriş yap ve kaldığın yerden devam et." : "Henüz bir hesabın yoksa, kaosun ve eğlencenin merkezine katılmak için hemen kayıt ol!"}</p>
-            <button onClick={() => setIsLoginActive(!isLoginActive)} className="border-[3px] border-white px-12 py-4 rounded-full font-black uppercase text-sm hover:bg-white hover:text-rose-700 transition-all active:scale-90 shadow-2xl">{isLoginActive ? "Kayıt Olmaya Git" : "Giriş Yapmaya Git"}</button>
+          <div className={`absolute top-0 w-1/2 h-full bg-gradient-to-br from-rose-600 to-rose-800 z-30 transition-all duration-700 ease-in-out flex flex-col items-center justify-center text-white px-12 text-center ${isLoginActive ? 'left-0 rounded-r-[100px]' : 'left-1/2 rounded-l-[100px]'}`}>
+            <h1 className="text-4xl font-black tracking-tighter mb-4 uppercase">{isLoginActive ? "Tekrar Selam!" : "Merhaba, Dumbass!"}</h1>
+            <p className="text-rose-100 text-sm mb-8">{isLoginActive ? "Zaten bu çılgın topluluğun bir parçasıysan, hemen giriş yap." : "Henüz bir hesabın yoksa, hemen kayıt ol ve aramıza katıl!"}</p>
+            <button onClick={() => setIsLoginActive(!isLoginActive)} className="border-2 border-white px-10 py-3 rounded-full font-black uppercase text-xs hover:bg-white hover:text-rose-600 transition-all active:scale-95">{isLoginActive ? "Kayıt Olmaya Git" : "Giriş Yapmaya Git"}</button>
           </div>
         </div>
       </div>
     );
   }
 
-  // --- CHAT EKRANI ---
   return (
     <div className={`flex h-screen bg-slate-950 text-white font-sans overflow-hidden transition-all duration-100 ${isNudged ? 'translate-x-2 translate-y-2 scale-[1.01]' : ''}`}>
       <div className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
@@ -332,7 +341,7 @@ export default function Home() {
           <button onClick={toggleDeafen} className={`w-full p-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg transform hover:scale-105 active:scale-95 ${isDeafened ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-white'}`}>
             {isDeafened ? "Kulaklığı Aç" : "Kulaklığı Sustur"}
           </button>
-          <button onClick={toggleMute} className={`w-full p-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg transform hover:scale-105 active:scale-95 ${isMuted ? 'bg-rose-600' : 'bg-sky-600'}`}>
+          <button onClick={toggleMute} className={`w-full p-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg transform hover:scale-105 active:scale-95 ${isMuted ? 'bg-rose-600' : 'bg-sky-600'} ${isDeafened ? 'opacity-50 cursor-not-allowed' : ''}`}>
             {isMuted ? "Mikrofonu Aç" : "Mikrofonu Kapat"}
           </button>
         </div>
@@ -352,30 +361,23 @@ export default function Home() {
                 </button>
               </div>
               <div className="flex-1 p-8 overflow-y-auto flex flex-col gap-6">
-                {users.some(u => u.isSharingScreen) && (
-                    <div className="w-full aspect-video bg-black rounded-[40px] overflow-hidden border-4 border-rose-600/20 shadow-2xl relative">
-                        <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-contain" />
-                        <div className="absolute top-6 left-6 bg-rose-600 px-4 py-2 rounded-full text-[10px] font-black uppercase animate-pulse shadow-xl">CANLI YAYIN</div>
-                    </div>
-                )}
                 <div className="flex flex-col gap-3">
                   {users.map((u) => (
                     <div key={u.id} onContextMenu={(e) => handleContextMenu(e, u.id)} className={`p-4 rounded-3xl border-4 flex items-center gap-5 transition-all duration-300 relative cursor-context-menu w-80 ${u.isSpeaking ? 'border-sky-500 bg-sky-950/20' : 'border-slate-800 bg-slate-900'} shadow-lg`}>
                       
-                      {/* DURUM SİMGELERİ (SAĞ ÜST - SIRALI) */}
-                      <div className="absolute top-3 right-4 flex flex-row-reverse gap-1.5 z-20">
-                          {u.isDeafened && (
-                            <div className="bg-amber-500/20 p-1.5 rounded-full border border-amber-500/40 shadow-inner flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      {/* DURUM SİMGESİ (SAĞ ÜST) */}
+                      <div className="absolute top-3 right-4 z-20">
+                          {u.isDeafened ? (
+                            <div className="bg-amber-500/20 p-2 rounded-full border border-amber-500/40 shadow-inner flex items-center justify-center">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Zm13 0h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-5Z" />
                                   <path d="M21 11V7a9 9 0 0 0-18 0v4" />
                                   <line x1="2" y1="2" x2="22" y2="22" />
                                 </svg>
                             </div>
-                          )}
-                          {u.isMuted && (
-                            <div className="bg-rose-600/20 p-1.5 rounded-full border border-rose-500/40 shadow-inner flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          ) : u.isMuted ? (
+                            <div className="bg-rose-600/20 p-2 rounded-full border border-rose-500/40 shadow-inner flex items-center justify-center">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
                                   <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
                                   <line x1="12" y1="19" x2="12" y2="23"/>
@@ -383,7 +385,7 @@ export default function Home() {
                                   <line x1="2" y1="2" x2="22" y2="22" />
                                 </svg>
                             </div>
-                          )}
+                          ) : null}
                       </div>
 
                       <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black shrink-0 transition-all duration-300 ${u.isSpeaking ? 'bg-sky-600 text-white shadow-lg' : 'bg-slate-700 text-slate-400'}`}>{u.name ? u.name[0].toUpperCase() : "?"}</div>
@@ -397,7 +399,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            {/* CHAT PANELİ */}
             <div className="w-80 flex flex-col bg-slate-900/50 backdrop-blur-md shrink-0">
               <div className="p-4 border-b border-slate-800 font-black text-[10px] uppercase text-slate-500 bg-slate-900/20 tracking-widest">Sohbet</div>
               <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
