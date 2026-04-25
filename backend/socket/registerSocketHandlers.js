@@ -15,6 +15,7 @@ const {
 } = require("../validation/schemas");
 const { getPrismaClient } = require("../lib/prisma");
 const { verifyAuthToken } = require("../lib/jwt");
+const { z } = require("zod");
 
 function buildChatMessage(user, text) {
   return {
@@ -233,6 +234,13 @@ function authSocket(socket, serverToken) {
   const providedToken = socket.handshake.auth?.token;
   return providedToken && providedToken === serverToken;
 }
+
+const deleteRoomCompatSchema = z.object({
+  serverId: z.string().trim().min(1).max(64),
+  roomName: z.string().trim().min(1).max(64),
+  actorUserName: z.string().trim().min(1).max(32).optional(),
+  userName: z.string().trim().min(1).max(32).optional(),
+});
 
 function registerSocketHandlers(io, { state, store, env }) {
   io.use((socket, next) => {
@@ -614,13 +622,21 @@ function registerSocketHandlers(io, { state, store, env }) {
 
     socket.on("delete-room", async (payload, ack) => {
       try {
-        const { serverId, roomName, actorUserName } = parseOrThrow(
-          updateRoomSettingsSchema.pick({ serverId: true, roomName: true, actorUserName: true }),
+        const { serverId, roomName, actorUserName, userName } = parseOrThrow(
+          deleteRoomCompatSchema,
           payload,
           "delete-room"
         );
+        const actorName = actorUserName || userName;
+        if (!actorName) {
+          throw new Error("actorUserName or userName is required");
+        }
         const normalizedServerId = normalizeServerId(serverId || "");
-        const actorRole = await getUserRoleInServer(store, normalizedServerId, actorUserName || "");
+        const actorRole = await getUserRoleInServer(
+          store,
+          normalizedServerId,
+          actorName
+        );
         if (!can("room:delete", actorRole)) {
           throw new Error("Insufficient permission for room delete");
         }
