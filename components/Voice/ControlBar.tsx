@@ -10,7 +10,7 @@ interface ControlBarProps {
 
 export default function ControlBar({ isMuted, isDeafened, toggleMute, toggleDeafen }: ControlBarProps) {
   return (
-    <div className="p-4 bg-slate-800/50 border-t border-slate-800 space-y-3">
+    <div className="p-4 bg-slate-800/50 border-t border-slate-800 space-y-3 shrink-0">
       <button onClick={toggleDeafen} className={`w-full p-4 rounded-2xl font-black text-[10px] uppercase shadow-lg transform active:scale-95 transition-all ${isDeafened ? 'bg-amber-500 text-slate-900' : 'bg-slate-700'}`}>
         {isDeafened ? "Kulaklığı Aç" : "Kulaklığı Sustur"}
       </button>
