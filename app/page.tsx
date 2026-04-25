@@ -2,13 +2,20 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
+// CANLI BAĞLANTI AYARI: 
+// Eğer .env dosyasında link yoksa doğrudan Railway adresini kullanır.
 const socketServerUrl =
-  process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || "http://localhost:3001";
+  process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || "https://communication-app-production.up.railway.app";
+
 const socketAuthToken = process.env.NEXT_PUBLIC_SOCKET_AUTH_TOKEN || "";
 const socketPath = process.env.NEXT_PUBLIC_SOCKET_PATH || "/socket.io";
+
+// Bağlantı seçeneklerine 'transports' ekledik, bu bağlantı hatalarını (CORS vb.) minimize eder.
 const socket = io(socketServerUrl, {
   path: socketPath,
   auth: socketAuthToken ? { token: socketAuthToken } : undefined,
+  transports: ["websocket", "polling"], 
+  withCredentials: true
 });
 
 export default function Home() {
@@ -182,11 +189,11 @@ export default function Home() {
     socket.emit("create-server", { serverName: value, userName }, (res: any) => {
       if (res?.ok && res.serverId) {
         setCurrentServer(res.serverId);
+        setNewServerName(""); // Sadece başarılıysa temizle
       } else if (res?.error) {
-        alert(res.error);
+        alert("Hata: " + res.error);
       }
     });
-    setNewServerName("");
   };
 
   const createRoom = async () => {
@@ -198,9 +205,9 @@ export default function Home() {
       async (res: any) => {
         if (res?.ok) {
           await handleJoinRoom(value);
-          setNewRoomName("");
+          setNewRoomName(""); // Sadece başarılıysa temizle
         } else if (res?.error) {
-          alert(res.error);
+          alert("Hata: " + res.error);
         }
       }
     );
@@ -244,6 +251,7 @@ export default function Home() {
     users.find((u) => u.id === socket.id)?.role ||
     users.find((u) => u.name === userName)?.role ||
     "member";
+
   const filteredRooms = activeRooms.filter(
     (room) => (room.serverId || "default") === currentServer
   );
@@ -252,7 +260,7 @@ export default function Home() {
   if (!isJoined) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white font-sans">
-        <div className="w-full max-w-sm bg-slate-900 p-10 rounded-[40px] shadow-2xl border border-slate-800">
+        <div className="w-full max-sm bg-slate-900 p-10 rounded-[40px] shadow-2xl border border-slate-800">
           <h1 className="text-4xl font-black text-rose-500 text-center mb-8 tracking-tighter cursor-default">Dumbasscord</h1>
           <input 
             type="text" placeholder="Takma Adınız" 
@@ -278,10 +286,20 @@ export default function Home() {
             <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Odalar</h3>
             <div className="space-y-1">
               {roomsToRender.map(room => (
-                <button key={room.name} onClick={() => handleJoinRoom(room.name)} className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
-                  <span># {room.name}</span>
-                  <span className="text-[10px] bg-slate-700 px-2 rounded-full">{room.count}</span>
-                </button>
+                <div key={room.name} className="group flex items-center gap-1">
+                  <button onClick={() => handleJoinRoom(room.name)} className={`flex-1 flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
+                    <span># {room.name}</span>
+                    <span className="text-[10px] bg-slate-700 px-2 rounded-full">{room.count}</span>
+                  </button>
+                  {myRole === "owner" && (
+                    <button 
+                      onClick={() => confirm(`${room.name} odasını silmek istediğine emin misin?`) && socket.emit("delete-room", { serverId: currentServer, roomName: room.name, userName })}
+                      className="opacity-0 group-hover:opacity-100 p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -289,9 +307,19 @@ export default function Home() {
             <h3 className="text-[10px] font-black text-slate-500 mb-3 uppercase px-2 font-mono tracking-widest">Sunucular</h3>
             <div className="space-y-1">
               {servers.map((server) => (
-                <button key={server.id} onClick={() => setCurrentServer(server.id)} className={`w-full text-left p-3 rounded-2xl text-xs font-bold transition-all ${currentServer === server.id ? "bg-rose-600 text-white" : "text-slate-300 hover:bg-slate-800"}`}>
-                  {server.name}
-                </button>
+                <div key={server.id} className="group flex items-center gap-1">
+                  <button onClick={() => setCurrentServer(server.id)} className={`flex-1 text-left p-3 rounded-2xl text-xs font-bold transition-all ${currentServer === server.id ? "bg-rose-600 text-white" : "text-slate-300 hover:bg-slate-800"}`}>
+                    {server.name}
+                  </button>
+                  {myRole === "owner" && server.id !== "default" && (
+                    <button 
+                      onClick={() => confirm(`${server.name} sunucusunu silmek istediğine emin misin?`) && socket.emit("delete-server", { serverId: server.id, userName })}
+                      className="opacity-0 group-hover:opacity-100 p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
             <div className="flex gap-2 px-2 mt-2">
@@ -315,7 +343,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ANA PANEL */}
+      {/* ANA PANEL... (Devamı verdiğin kod ile aynı) */}
       <div className="flex-1 flex bg-slate-950">
         {!currentRoom ? (
           <div className="flex-1 flex items-center justify-center text-slate-500 italic">Dumbasscord'a hoş geldin!</div>
@@ -338,13 +366,11 @@ export default function Home() {
                     </div>
                 )}
                 
-                {/* LİSTE DÜZENİ: SABİT GENİŞLİKLİ KARTLAR */}
                 <div className="flex flex-col gap-3">
                   {users.map((u) => (
                     <div 
                       key={u.id} 
                       onContextMenu={(e) => handleContextMenu(e, u.id)} 
-                      // w-80 eklenerek kart boyutu sabitlendi
                       className={`p-4 rounded-3xl border-4 flex items-center gap-5 transition-all duration-300 relative cursor-context-menu w-80 ${u.isSpeaking ? 'border-sky-500 bg-sky-950/20' : 'border-slate-800 bg-slate-900'} shadow-lg`}
                     >
                       {u.isMuted && (
@@ -433,5 +459,5 @@ export default function Home() {
         </div>
       )}
     </div>
-  ); 
+  );
 }
