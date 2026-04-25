@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
-// CANLI BAĞLANTI AYARI
 const socketServerUrl =
   process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || "https://communication-app-production.up.railway.app";
 const socketAuthToken = process.env.NEXT_PUBLIC_SOCKET_AUTH_TOKEN || "";
@@ -27,11 +26,9 @@ export default function Home() {
   const [users, setUsers] = useState<any[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
-  
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isNudged, setIsNudged] = useState(false);
-  
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, userId: string } | null>(null);
   const [userVolumes, setUserVolumes] = useState<{ [key: string]: number }>({});
 
@@ -272,7 +269,6 @@ export default function Home() {
 
   return (
     <div className={`flex h-screen bg-slate-950 text-white font-sans overflow-hidden transition-all duration-100 ${isNudged ? 'translate-x-2 translate-y-2 scale-[1.01]' : ''}`}>
-      {/* SIDEBAR */}
       <div className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
         <div className="p-6 border-b border-slate-800">
           <h1 className="text-2xl font-black text-rose-500 tracking-tighter">Dumbasscord</h1>
@@ -285,10 +281,9 @@ export default function Home() {
               {roomsToRender.map(room => (
                 <div key={room.name} className="flex items-center gap-2 pr-2">
                   <button onClick={() => handleJoinRoom(room.name)} className={`flex-1 flex items-center justify-between p-3 rounded-2xl transition-all font-bold text-sm transform hover:scale-105 active:scale-95 duration-200 ${currentRoom === room.name ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800'}`}>
-                    <span># {room.name}</span>
-                    <span className="text-[10px] bg-slate-700 px-2 rounded-full">{room.count}</span>
+                    <span className="truncate pr-1"># {room.name}</span>
+                    <span className="text-[10px] bg-slate-700 px-2 rounded-full shrink-0">{room.count}</span>
                   </button>
-                  {/* HERKESE GÖRÜNÜR SİLME BUTONU */}
                   <button 
                     onClick={() => confirm(`${room.name} odasını silmek istediğine emin misin?`) && socket.emit("delete-room", { serverId: currentServer, roomName: room.name, userName })}
                     className="p-2 text-rose-500 hover:bg-rose-500/20 rounded-xl transition-all shrink-0"
@@ -305,9 +300,8 @@ export default function Home() {
               {servers.map((server) => (
                 <div key={server.id} className="flex items-center gap-2 pr-2">
                   <button onClick={() => setCurrentServer(server.id)} className={`flex-1 text-left p-3 rounded-2xl text-xs font-bold transition-all ${currentServer === server.id ? "bg-rose-600 text-white" : "text-slate-300 hover:bg-slate-800"}`}>
-                    {server.name}
+                    <span className="truncate">{server.name}</span>
                   </button>
-                  {/* HERKESE GÖRÜNÜR SİLME BUTONU */}
                   {server.id !== "default" && (
                     <button 
                       onClick={() => confirm(`${server.name} sunucusunu silmek istediğine emin misin?`) && socket.emit("delete-server", { serverId: server.id, userName })}
@@ -340,7 +334,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ANA PANEL */}
       <div className="flex-1 flex bg-slate-950">
         {!currentRoom ? (
           <div className="flex-1 flex items-center justify-center text-slate-500 italic">Dumbasscord'a hoş geldin!</div>
@@ -365,28 +358,15 @@ export default function Home() {
                 
                 <div className="flex flex-col gap-3">
                   {users.map((u) => (
-                    <div 
-                      key={u.id} 
-                      onContextMenu={(e) => handleContextMenu(e, u.id)} 
-                      className={`p-4 rounded-3xl border-4 flex items-center gap-5 transition-all duration-300 relative cursor-context-menu w-80 ${u.isSpeaking ? 'border-sky-500 bg-sky-950/20' : 'border-slate-800 bg-slate-900'} shadow-lg`}
-                    >
+                    <div key={u.id} onContextMenu={(e) => handleContextMenu(e, u.id)} className={`p-4 rounded-3xl border-4 flex items-center gap-5 transition-all duration-300 relative cursor-context-menu w-80 ${u.isSpeaking ? 'border-sky-500 bg-sky-950/20' : 'border-slate-800 bg-slate-900'} shadow-lg`}>
                       {u.isMuted && (
                         <div className="absolute top-3 right-4 bg-rose-600/20 p-1.5 rounded-full border border-rose-500/40 shadow-inner z-20">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                              <line x1="1" y1="1" x2="23" y2="23" />
-                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                         </div>
                       )}
-
-                      <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black shrink-0 transition-all duration-300 ${u.isSpeaking ? 'bg-sky-600 text-white shadow-lg' : 'bg-slate-700 text-slate-400'}`}>
-                        {u.name ? u.name[0].toUpperCase() : "?"}
-                      </div>
-
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black shrink-0 transition-all duration-300 ${u.isSpeaking ? 'bg-sky-600 text-white shadow-lg' : 'bg-slate-700 text-slate-400'}`}>{u.name ? u.name[0].toUpperCase() : "?"}</div>
                       <div className="flex flex-col min-w-0">
-                        <span className="font-black text-base text-slate-200 tracking-tight leading-none uppercase truncate">
-                          {u.name} {u.id === socket.id && <span className="text-sky-500 text-[10px] ml-1">(SEN)</span>}
-                        </span>
+                        <span className="font-black text-base text-slate-200 tracking-tight leading-none uppercase truncate">{u.name} {u.id === socket.id && <span className="text-sky-500 text-[10px] ml-1">(SEN)</span>}</span>
                         {u.role && <span className="text-[8px] text-amber-400 uppercase font-black">{u.role}</span>}
                         {u.isSharingScreen && <div className="text-[8px] mt-1 bg-rose-600 w-fit px-1.5 py-0.5 rounded-full font-black animate-pulse">YAYINDA</div>}
                       </div>
@@ -396,16 +376,13 @@ export default function Home() {
               </div>
             </div>
 
-            {/* CHAT PANELİ */}
             <div className="w-80 flex flex-col bg-slate-900/50 backdrop-blur-md shrink-0">
               <div className="p-4 border-b border-slate-800 font-black text-[10px] uppercase text-slate-500 bg-slate-900/20 tracking-widest">Sohbet</div>
               <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
                 {messages.map((msg, i) => (
                   <div key={i} className={`flex flex-col ${msg.sender === userName ? 'items-end' : 'items-start'}`}>
                     <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter mb-1 px-1">{msg.sender}</span>
-                    <div className={`px-4 py-2 rounded-2xl text-sm max-w-[90%] break-words shadow-sm ${msg.sender === userName ? 'bg-sky-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-300 rounded-tl-none'}`}>
-                      {msg.text}
-                    </div>
+                    <div className={`px-4 py-2 rounded-2xl text-sm max-w-[90%] break-words shadow-sm ${msg.sender === userName ? 'bg-sky-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-300 rounded-tl-none'}`}>{msg.text}</div>
                   </div>
                 ))}
                 <div ref={chatEndRef} />
@@ -419,7 +396,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* SAĞ TIK MENÜSÜ */}
       {contextMenu && (
         <div className="fixed z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-2 w-48 font-sans" style={{ top: contextMenu.y, left: contextMenu.x }}>
           <button onClick={() => { socket.emit("send-nudge", contextMenu.userId); setContextMenu(null); }} className="w-full text-left p-3 hover:bg-amber-500 hover:text-slate-900 rounded-xl text-xs font-black transition-all mb-1">👉 DÜRT!</button>
