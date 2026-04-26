@@ -26,6 +26,10 @@ interface ChatAreaProps {
   onTogglePinMessage: (message: MessageItem) => void;
   isPinned: (messageId: number | string) => boolean;
   onPickFile: (file: File) => void;
+  searchTerm: string;
+  onSearchTermChange: (value: string) => void;
+  reactionsByMessage: Record<string, number>;
+  onToggleReaction: (messageId: number | string) => void;
 }
 
 export default function ChatArea({
@@ -40,7 +44,19 @@ export default function ChatArea({
   onTogglePinMessage,
   isPinned,
   onPickFile,
+  searchTerm,
+  onSearchTermChange,
+  reactionsByMessage,
+  onToggleReaction,
 }: ChatAreaProps) {
+  const visibleMessages = searchTerm.trim()
+    ? messages.filter(
+        (message) =>
+          message.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          message.sender.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : messages;
+
   return (
     <div className="flex-1 flex flex-col bg-slate-950">
       <div className="p-4 border-b border-slate-900 bg-slate-900/20 flex justify-between items-center shadow-sm">
@@ -49,6 +65,15 @@ export default function ChatArea({
           <span className="hover:text-white cursor-pointer">Duyurular</span>
           <span className="hover:text-white cursor-pointer">Sabitlenenler ({pinnedMessages.length})</span>
         </div>
+      </div>
+      <div className="px-4 py-2 border-b border-slate-900">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(event) => onSearchTermChange(event.target.value)}
+          placeholder="Mesajlarda ara..."
+          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-sky-500"
+        />
       </div>
 
       {pinnedMessages.length > 0 ? (
@@ -64,7 +89,7 @@ export default function ChatArea({
       ) : null}
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        {messages.map((m) => (
+        {visibleMessages.map((m) => (
           <div key={m.id} className="group flex flex-col hover:bg-slate-900/30 p-2 rounded-2xl transition-all relative">
             <div className="flex items-center gap-2 mb-1">
               <span className={`text-xs font-black uppercase ${m.sender === userName ? 'text-sky-500' : 'text-rose-500'}`}>
@@ -93,6 +118,13 @@ export default function ChatArea({
               title="Mesajı sabitle"
             >
               📌
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleReaction(m.id)}
+              className="absolute right-14 top-2 text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all bg-slate-700 text-slate-200"
+            >
+              👍 {reactionsByMessage[String(m.id)] || 0}
             </button>
           </div>
         ))}

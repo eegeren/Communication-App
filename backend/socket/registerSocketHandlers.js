@@ -17,6 +17,8 @@ const { getPrismaClient } = require("../lib/prisma");
 const { verifyAuthToken } = require("../lib/jwt");
 const { z } = require("zod");
 
+const serverBanList = new Map();
+
 function buildChatMessage(user, text, attachment = null) {
   return {
     id: Date.now(),
@@ -135,6 +137,7 @@ function can(action, role) {
       "role:promote",
       "role:demote",
       "role:transfer",
+      "member:moderate",
     ]),
     admin: new Set([
       "server:update",
@@ -142,8 +145,9 @@ function can(action, role) {
       "room:update",
       "room:delete",
       "room:restore",
+      "member:moderate",
     ]),
-    mod: new Set(["room:update"]),
+    mod: new Set(["room:update", "member:moderate"]),
     member: new Set([]),
   };
   return matrix[role || "member"]?.has(action) || false;
@@ -385,6 +389,10 @@ function registerSocketHandlers(io, { state, store, env }) {
           "join-room"
         );
         const normalizedServerId = normalizeServerId(serverId);
+        const bannedUsers = serverBanList.get(normalizedServerId) || new Set();
+        if (bannedUsers.has(userName.toLowerCase())) {
+          throw new Error("Bu sunucudan banlandın.");
+        }
         const persistedRoomId = buildPersistedRoomId(normalizedServerId, roomId);
         const oldUser = state.getUser(socket.id);
         const oldRoom = oldUser?.room;
@@ -820,6 +828,62 @@ function registerSocketHandlers(io, { state, store, env }) {
         if (typeof ack === "function") {
           ack({ ok: false, error: error.message });
         }
+      }
+    });
+
+    socket.on("moderate-user", async (payload, ack) => {
+      try {
+        const parsed = z
+          .object({
+            action: z.enum(["mute", "kick", "ban"]),
+            targetSocketId: z.string().trim().min(1),
+            targetUserName: z.string().trim().min(1),
+            serverId: z.string().trim().min(1),
+            actorUserName: z.string().trim().min(1),
+          })
+          .parse(payload);
+        const normalizedServerId = normalizeServerId(parsed.serverId);
+        const actorRole = await getUserRoleInServer(
+          store,
+          normalizedServerId,
+          parsed.actorUserName
+        );
+        if (!can("member:moderate", actorRole)) {
+          throw new Error("Yetersiz yetki.");
+        }
+
+        const targetUser = state.getUser(parsed.targetSocketId);
+        if (!targetUser) {
+          throw new Error("Hedef kullanıcı bulunamadı.");
+        }
+
+        if (parsed.action === "mute") {
+          targetUser.isMuted = true;
+          io.to(parsed.targetSocketId).emit("forced-muted");
+          if (targetUser.room) {
+            emitUserList(io, state, targetUser.room);
+          }
+        }
+
+        if (parsed.action === "kick" || parsed.action === "ban") {
+          if (parsed.action === "ban") {
+            const list = serverBanList.get(normalizedServerId) || new Set();
+            list.add(parsed.targetUserName.toLowerCase());
+            serverBanList.set(normalizedServerId, list);
+            io.to(parsed.targetSocketId).emit("banned");
+          } else {
+            io.to(parsed.targetSocketId).emit("kicked");
+          }
+          const deleted = state.deleteUser(parsed.targetSocketId);
+          if (deleted?.room) {
+            io.sockets.sockets.get(parsed.targetSocketId)?.leave(deleted.room);
+            emitUserList(io, state, deleted.room);
+          }
+        }
+
+        if (typeof ack === "function") ack({ ok: true });
+      } catch (error) {
+        if (typeof ack === "function") ack({ ok: false, error: error.message });
       }
     });
 

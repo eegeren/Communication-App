@@ -26,6 +26,9 @@ interface ChannelListProps {
   onLeaveRoom: () => void;
   onSelectUser: (user: ChannelUser) => void;
   onOpenUserAudioMenu: (user: ChannelUser, x: number, y: number) => void;
+  unreadByRoom?: Record<string, number>;
+  isMuted?: boolean;
+  isDeafened?: boolean;
 }
 
 export default function ChannelList({
@@ -43,6 +46,9 @@ export default function ChannelList({
   onLeaveRoom,
   onSelectUser,
   onOpenUserAudioMenu,
+  unreadByRoom = {},
+  isMuted = false,
+  isDeafened = false,
 }: ChannelListProps) {
   const statusLabelMap: Record<string, string> = {
     online: "Çevrimiçi",
@@ -107,6 +113,11 @@ export default function ChannelList({
                   <div className="flex items-center gap-2 truncate">
                     <span className="text-slate-500 font-black">#</span>
                     <span className="truncate">{room.name}</span>
+                    {unreadByRoom[room.name] ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-600 text-white">
+                        {unreadByRoom[room.name]}
+                      </span>
+                    ) : null}
                   </div>
                 </button>
                 <button
@@ -136,8 +147,9 @@ export default function ChannelList({
                         {u.name}
                       </div>
                       <div className="text-[10px]">
-                        {u.id === currentUserId && u.isMuted ? "🔇" : ""}
-                        {u.id !== currentUserId && u.isMuted ? "🔕" : ""}
+                        {u.id === currentUserId && isMuted ? "🎙️🚫" : ""}
+                        {u.id === currentUserId && isDeafened ? "🎧🚫" : ""}
+                        {u.id !== currentUserId && u.isMuted ? "🎙️🚫" : ""}
                         {u.isSpeaking && !u.isMuted ? "🟢" : ""}
                       </div>
                     </div>

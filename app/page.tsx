@@ -8,6 +8,9 @@ import ChannelList from "../components/Sidebar/ChannelList";
 import ControlBar from "../components/Voice/ControlBar";
 import ChatArea from "../components/Chat/ChatArea";
 import ProfileModal from "../components/Profile/ProfileModal";
+import SelectedUserCard from "../components/Overlays/SelectedUserCard";
+import UserAudioMenu from "../components/Overlays/UserAudioMenu";
+import DialogModal from "../components/Overlays/DialogModal";
 
 const socketServerUrl = "https://communication-app-production.up.railway.app";
 const socketPath = "/socket.io";
@@ -88,6 +91,17 @@ export default function Home() {
     y: number;
   } | null>(null);
   const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [reactionsByMessage, setReactionsByMessage] = useState<Record<string, number>>({});
+  const [unreadByRoom, setUnreadByRoom] = useState<Record<string, number>>({});
+  const [toasts, setToasts] = useState<Array<{ id: number; text: string }>>([]);
+  const [themeMode, setThemeMode] = useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") {
+      return "dark";
+    }
+    const storedTheme = window.localStorage.getItem("theme-mode");
+    return storedTheme === "light" ? "light" : "dark";
+  });
 
   const localStream = useRef<MediaStream | null>(null);
   const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({});
@@ -192,6 +206,18 @@ export default function Home() {
     const handleMessageHistory = (list: ChatMessage[]) => setMessages(list);
     const handleReceiveMessage = (message: ChatMessage) => {
       setMessages((prev) => [...prev, message]);
+      if (message.sender !== userName && currentRoom) {
+        if (document.hidden) {
+          setUnreadByRoom((prev) => ({ ...prev, [currentRoom]: (prev[currentRoom] || 0) + 1 }));
+        }
+        if (message.text?.toLowerCase().includes(`@${userName.toLowerCase()}`)) {
+          const id = Date.now();
+          setToasts((prev) => [...prev, { id, text: `${message.sender} senden bahsetti` }]);
+          window.setTimeout(() => {
+            setToasts((prev) => prev.filter((item) => item.id !== id));
+          }, 3500);
+        }
+      }
     };
     const handleConnect = () => socket.emit("request-state");
     const handleUserJoined = async (peerId: string) => {
@@ -237,6 +263,27 @@ export default function Home() {
     const handleRoomDeleted = ({ fallbackRoomName }: { fallbackRoomName: string }) => {
       setCurrentRoom(fallbackRoomName);
     };
+    const handleForcedMuted = () => {
+      setIsMuted(true);
+      if (localStream.current) {
+        localStream.current.getAudioTracks().forEach((track) => {
+          track.enabled = false;
+        });
+      }
+    };
+    const handleKicked = () => {
+      alert("Odadan atıldın.");
+      setCurrentRoom("");
+      setMessages([]);
+      setUsers([]);
+    };
+    const handleBanned = () => {
+      alert("Sunucudan banlandın.");
+      setCurrentRoom("");
+      setCurrentServer("default");
+      setMessages([]);
+      setUsers([]);
+    };
 
     socket.on("server-list", handleServerList);
     socket.on("room-list", handleRoomList);
@@ -245,6 +292,9 @@ export default function Home() {
     socket.on("receive-message", handleReceiveMessage);
     socket.on("typing-status", handleTypingStatus);
     socket.on("room-deleted", handleRoomDeleted);
+    socket.on("forced-muted", handleForcedMuted);
+    socket.on("kicked", handleKicked);
+    socket.on("banned", handleBanned);
     socket.on("connect", handleConnect);
     socket.on("user-joined", handleUserJoined);
     socket.on("offer", handleOffer);
@@ -260,6 +310,9 @@ export default function Home() {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("typing-status", handleTypingStatus);
       socket.off("room-deleted", handleRoomDeleted);
+      socket.off("forced-muted", handleForcedMuted);
+      socket.off("kicked", handleKicked);
+      socket.off("banned", handleBanned);
       socket.off("connect", handleConnect);
       socket.off("user-joined", handleUserJoined);
       socket.off("offer", handleOffer);
@@ -292,6 +345,8 @@ export default function Home() {
   }, []);
 
   const selectedUser = selectedUserId ? users.find((u) => u.id === selectedUserId) || null : null;
+  const selectedUserStatus =
+    selectedUser?.id === socket.id ? profile.status : selectedUser?.status;
 
   const handleJoinRoom = async (roomName: string) => {
     if (!roomName.trim() || roomName === currentRoom) return;
@@ -310,6 +365,7 @@ export default function Home() {
         setCurrentRoom(roomName);
         setTypingUsers([]);
         socket.emit("presence-status", profile.status || "online");
+        setUnreadByRoom((prev) => ({ ...prev, [roomName]: 0 }));
       }
     });
   };
@@ -328,6 +384,7 @@ export default function Home() {
       setMessages([]);
       setSelectedUserId(null);
       setAudioMenu(null);
+      setSearchTerm("");
       resetVoiceConnections();
     });
   };
@@ -508,6 +565,7 @@ export default function Home() {
     setUsers([]);
     setMessages([]);
     setTypingUsers([]);
+    setSearchTerm("");
     resetVoiceConnections();
     setSelectedUserId(null);
     setAudioMenu(null);
@@ -534,6 +592,35 @@ export default function Home() {
       return false;
     }
     return (pinnedByRoom[currentRoom] || []).some((item) => item.id === messageId);
+  };
+
+  const toggleReaction = (messageId: number | string) => {
+    const key = String(messageId);
+    setReactionsByMessage((prev) => ({
+      ...prev,
+      [key]: (prev[key] || 0) + 1,
+    }));
+  };
+
+  const handleModerateUser = (action: "mute" | "kick" | "ban") => {
+    if (!audioMenu) return;
+    socket.emit(
+      "moderate-user",
+      {
+        action,
+        targetSocketId: audioMenu.userId,
+        targetUserName: audioMenu.userName,
+        serverId: currentServer,
+        actorUserName: userName,
+      },
+      (res: { ok?: boolean; error?: string }) => {
+        if (!res?.ok) {
+          alert(res?.error || "Moderasyon işlemi başarısız.");
+          return;
+        }
+        setAudioMenu(null);
+      }
+    );
   };
 
   const typingLabel = typingUsers.length
@@ -606,7 +693,11 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen max-h-screen bg-slate-950 text-white font-sans overflow-hidden">
+    <div
+      className={`flex h-screen max-h-screen font-sans overflow-hidden ${
+        themeMode === "dark" ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-950"
+      }`}
+    >
       <ProfileModal
         key={`${isProfileOpen}-${profile.name}-${profile.status}-${profile.avatarUrl || ""}`}
         isOpen={isProfileOpen}
@@ -634,6 +725,17 @@ export default function Home() {
         onRequestClearAll={() => setDialog({ type: "clear-all" })}
       />
 
+      <button
+        onClick={() => {
+          const nextTheme = themeMode === "dark" ? "light" : "dark";
+          setThemeMode(nextTheme);
+          window.localStorage.setItem("theme-mode", nextTheme);
+        }}
+        className="fixed left-24 top-4 z-[100] text-[11px] px-3 py-1.5 rounded-lg bg-slate-800 text-white"
+      >
+        Tema: {themeMode === "dark" ? "Koyu" : "Açık"}
+      </button>
+
       <div className="w-72 min-w-72 h-full flex flex-col border-r border-slate-800">
         <ChannelList
           rooms={activeRooms.filter((r) => (r.serverId || "default") === currentServer)}
@@ -655,6 +757,9 @@ export default function Home() {
           onOpenUserAudioMenu={(selected, x, y) =>
             setAudioMenu({ userId: selected.id, userName: selected.name, x, y })
           }
+          unreadByRoom={unreadByRoom}
+          isMuted={isMuted}
+          isDeafened={isDeafened}
         />
 
         <ControlBar isMuted={isMuted} isDeafened={isDeafened} toggleMute={toggleMute} toggleDeafen={toggleDeafen} />
@@ -673,144 +778,70 @@ export default function Home() {
           onTogglePinMessage={togglePinMessage}
           isPinned={isPinned}
           onPickFile={handleFilePick}
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          reactionsByMessage={reactionsByMessage}
+          onToggleReaction={toggleReaction}
         />
       </div>
 
       {selectedUser ? (
-        <div className="fixed right-6 top-6 z-[90] w-64 rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-black text-white truncate">{selectedUser.name}</h4>
-            <button onClick={() => setSelectedUserId(null)} className="text-slate-400 hover:text-white">✕</button>
-          </div>
-          <p className="text-xs text-slate-400 mt-2">
-            Durum:{" "}
-            <span className="font-semibold text-slate-200">
-              {selectedUser.status === "idle"
-                ? "Boşta"
-                : selectedUser.status === "dnd"
-                  ? "Rahatsız Etmeyin"
-                  : "Çevrimiçi"}
-            </span>
-          </p>
-          <p className="text-xs text-slate-500 mt-1">Sağ tık ile ses seviyesini ayarlayabilirsin.</p>
-        </div>
+        <SelectedUserCard
+          user={{ name: selectedUser.name, status: selectedUserStatus }}
+          onClose={() => setSelectedUserId(null)}
+        />
       ) : null}
 
       {audioMenu ? (
-        <div
-          className="fixed z-[95] w-56 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl"
-          style={{ left: audioMenu.x, top: audioMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p className="text-xs text-slate-300 font-semibold mb-2 truncate">{audioMenu.userName} sesi</p>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={Math.round((userVolumes[audioMenu.userId] ?? 1) * 100)}
-            onChange={(e) => {
-              const volume = Number(e.target.value) / 100;
-              setUserVolumes((prev) => ({ ...prev, [audioMenu.userId]: volume }));
-            }}
-            className="w-full"
-          />
-          <p className="text-[10px] text-slate-500 mt-1">
-            {(Math.round((userVolumes[audioMenu.userId] ?? 1) * 100))}%
-          </p>
-        </div>
+        <UserAudioMenu
+          userName={audioMenu.userName}
+          x={audioMenu.x}
+          y={audioMenu.y}
+          volume={userVolumes[audioMenu.userId] ?? 1}
+          onVolumeChange={(volume) => {
+            setUserVolumes((prev) => ({ ...prev, [audioMenu.userId]: volume }));
+          }}
+          onModerate={audioMenu.userId !== socket.id ? handleModerateUser : undefined}
+        />
       ) : null}
 
-      {dialog ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl p-6">
-            {(dialog.type === "create-server" || dialog.type === "create-room") ? (
-              <>
-                <h3 className="text-xl font-black text-white mb-2">
-                  {dialog.type === "create-server" ? "Yeni Sunucu Oluştur" : "Yeni Oda Oluştur"}
-                </h3>
-                <p className="text-sm text-slate-400 mb-4">
-                  {dialog.type === "create-server"
-                    ? "Sunucuna kısa ve akılda kalıcı bir isim ver."
-                    : "Bu sunucu için yeni oda adı gir."}
-                </p>
-                <input
-                  autoFocus
-                  type="text"
-                  value={dialogInput}
-                  onChange={(e) => setDialogInput(e.target.value)}
-                  placeholder={dialog.type === "create-server" ? "Örn: Gölge Takım" : "Örn: genel-sohbet"}
-                  className="w-full rounded-2xl border border-slate-700 bg-slate-950 p-3 text-white outline-none focus:border-rose-500"
-                />
-                <div className="mt-6 flex gap-3 justify-end">
-                  <button
-                    onClick={() => setDialog(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700"
-                  >
-                    Vazgeç
-                  </button>
-                  <button
-                    onClick={() => {
-                      const value = dialogInput.trim();
-                      if (!value) {
-                        return;
-                      }
-                      if (dialog.type === "create-server") {
-                        submitCreateServer(value);
-                        return;
-                      }
-                      submitCreateRoom(value);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-500 font-bold"
-                  >
-                    Oluştur
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3 className="text-xl font-black text-white mb-2">
-                  {dialog.type === "delete-server"
-                    ? "Sunucuyu Sil"
-                    : dialog.type === "delete-room"
-                      ? "Odayı Sil"
-                      : "Hepsini Temizle"}
-                </h3>
-                <p className="text-sm text-slate-400 mb-6">
-                  {dialog.type === "delete-server"
-                    ? `#${dialog.serverName} sunucusunu arşive göndereceğiz.`
-                    : dialog.type === "delete-room"
-                      ? `#${dialog.roomName} odasını arşive göndereceğiz.`
-                      : "Tüm sunucular ve odalar temizlenecek. Bu işlem geri alınamaz."}
-                </p>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => setDialog(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700"
-                  >
-                    İptal
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (dialog.type === "delete-server") {
-                        submitDeleteServer(dialog.serverId);
-                        return;
-                      }
-                      if (dialog.type === "delete-room") {
-                        submitDeleteRoom(dialog.roomName);
-                        return;
-                      }
-                      submitClearAll();
-                    }}
-                    className="px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-500 font-bold"
-                  >
-                    Sil
-                  </button>
-                </div>
-              </>
-            )}
+      <DialogModal
+        dialog={dialog}
+        value={dialogInput}
+        onValueChange={setDialogInput}
+        onClose={() => setDialog(null)}
+        onSubmitCreate={() => {
+          const value = dialogInput.trim();
+          if (!value || !dialog) {
+            return;
+          }
+          if (dialog.type === "create-server") {
+            submitCreateServer(value);
+            return;
+          }
+          submitCreateRoom(value);
+        }}
+        onSubmitDelete={() => {
+          if (!dialog) return;
+          if (dialog.type === "delete-server") {
+            submitDeleteServer(dialog.serverId);
+            return;
+          }
+          if (dialog.type === "delete-room") {
+            submitDeleteRoom(dialog.roomName);
+            return;
+          }
+          submitClearAll();
+        }}
+      />
+
+      <div className="fixed right-6 bottom-6 z-[110] space-y-2">
+        {toasts.map((toast) => (
+          <div key={toast.id} className="rounded-xl bg-slate-800 text-slate-100 px-4 py-2 text-xs shadow-xl">
+            {toast.text}
           </div>
-        </div>
-      ) : null}
+        ))}
+      </div>
     </div>
   );
 }
