@@ -1,0 +1,5 @@
+# Varsayılan: yalnızca Socket.IO (Vercel’deki Next ile birlikte kullanım).
+# Monolit (aynı serviste Next + socket) istiyorsanız Railway’de Start Command’ı
+# `npm start` yapın ve INTERNAL_SOCKET_PROXY_URL ekleyin (README).
+[deploy]
+startCommand = "npm run start:socket:only"

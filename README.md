@@ -44,7 +44,8 @@ npm run start:socket:only
 
 ## Ortam Değişkenleri
 
-`NEXT_PUBLIC_SOCKET_SERVER_URL`: Frontend'in bağlanacağı socket backend adresi  
+`SOCKET_PUBLIC_URL`: **Vercel’de önerilen** socket kök adresi (`https://…railway.app`, sondaki `/` olmadan). Sunucu `/api/socket-config` ile tarayıcıya verilir; URL değişince **yeniden build gerekmez**.  
+`NEXT_PUBLIC_SOCKET_SERVER_URL`: Aynı adresin build-time yedeği (yalnızca `SOCKET_PUBLIC_URL` boşsa kullanılır).  
 `INTERNAL_SOCKET_PROXY_URL`: **Sadece** Next ve socket aynı Railway konteynerinde ve `npm start` kullanılıyorsa: `http://127.0.0.1:3001` gibi iç adres; Next `/socket.io` isteklerini buraya proxyleyen rewrite açar. Vercel’de kullanılmaz.  
 `NEXT_PUBLIC_SOCKET_PATH`: Socket.IO path (`/socket.io`)  
 `NEXT_PUBLIC_SOCKET_AUTH_TOKEN`: Frontend handshake auth token  
@@ -105,8 +106,10 @@ Vercel **yalnızca Next.js** derler ve yayınlar; `server.js` (Socket.IO) Vercel
 
 1. **Socket backend’i ayrı bir Railway (veya benzeri) serviste çalıştırın** ve o serviste **yalnızca socket** dinleyin: start komutu **`npm run start:socket:only`** veya **`node server.js`** olsun (`npm start` / `concurrently` kullanmayın). Aksi halde `PORT` Next.js’e gider; tarayıcı `https://…/socket.io` isteğini Next alır ve **404** döner (konsolda çoğu zaman “CORS” da görünür).  
    - Monolit isteyenler: aynı repoda `INTERNAL_SOCKET_PROXY_URL=http://127.0.0.1:3001` + `npm start` + `NEXT_PUBLIC_SOCKET_SERVER_URL` = sayfanın **aynı** public `https` kökü (detay `next.config.ts` yorumunda).
-2. **Vercel ortam değişkenleri** (Settings → Environment Variables), build’den *önce* tanımlı olsun:
-   - `NEXT_PUBLIC_SOCKET_SERVER_URL` = socket sunucunuzun genel adresi, örn. `https://socket-app.up.railway.app` (HTTPS sayfa ile **https/wss** kullanın; aksi halde tarayıcı engeller).
+2. **Vercel ortam değişkenleri** (Settings → Environment Variables):
+   - **`SOCKET_PUBLIC_URL`** = Railway’deki **yalnızca socket** servisinin `https://…` kökü (örn. `https://communication-app-production.up.railway.app`). Bu değişkeni kaydedip redeploy yeterli; client bundle’ı socket URL’si için yeniden derlemen gerekmez.  
+   - İsteğe bağlı: `SOCKET_PUBLIC_AUTH_TOKEN` / Railway’de `SOCKET_AUTH_TOKEN` (aynı gizli değer).  
+   - Alternatif: sadece `NEXT_PUBLIC_SOCKET_SERVER_URL` (her URL değişiminde **rebuild** gerekir).
    - İsteğe bağlı: `NEXT_PUBLIC_SOCKET_PATH`, `NEXT_PUBLIC_SOCKET_AUTH_TOKEN` (socket tarafında aynı `SOCKET_AUTH_TOKEN`).
 3. **Socket sunucusunda (Railway)** `ALLOWED_ORIGINS` örnek: `https://proje-adiniz.vercel.app,https://*.vercel.app` — tam Vercel URL’nizi ve isteğe bağlı tüm Vercel deployment’ları için `https://*.vercel.app` kullanın.  
 4. **308 / “CORS yok”**: İstek önce **308 yönlendirmesi** alıyorsa (Railway canonical URL), tarayıcı bazen yönlendirme cevabında CORS başlığı görmediği için aynı hatayı gösterir. **Railway panosundaki** “Public networking” ile verilen **nihai** `https://…` adresini (yönlendirme olmadan açılan) `NEXT_PUBLIC_SOCKET_SERVER_URL` olarak kullanın; gerekirse sondaki `/` veya `www` farkını kaldırın.
