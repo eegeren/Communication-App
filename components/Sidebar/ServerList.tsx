@@ -19,12 +19,12 @@ export default function ServerList({
   onRequestClearAll,
 }: ServerListProps) {
   return (
-    <div className="w-20 bg-slate-950 border-r border-slate-900 flex flex-col items-center py-4 gap-3 shrink-0">
+    <div className="w-full md:w-20 bg-slate-950 border-b md:border-b-0 md:border-r border-slate-900 flex md:flex-col items-center md:items-center py-2 md:py-4 px-2 md:px-0 gap-2 md:gap-3 shrink-0 overflow-x-auto md:overflow-x-visible">
       {servers.map((s) => (
-        <div key={s.id} className="relative group">
+        <div key={s.id} className="relative group shrink-0">
           <button
             onClick={() => setCurrentServer(s.id)}
-            className={`w-12 h-12 rounded-[24px] hover:rounded-2xl transition-all duration-300 flex items-center justify-center font-black text-lg ${
+            className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl md:rounded-[24px] md:hover:rounded-2xl transition-all duration-300 flex items-center justify-center font-black text-sm md:text-lg ${
               currentServer === s.id ? "bg-rose-600 text-white" : "bg-slate-800 text-slate-400"
             }`}
           >
@@ -43,14 +43,14 @@ export default function ServerList({
       ))}
       <button
         onClick={onRequestCreateServer}
-        className="w-12 h-12 rounded-[24px] hover:rounded-2xl transition-all bg-emerald-600 text-white font-black text-2xl shadow-lg"
+        className="w-10 h-10 md:w-12 md:h-12 rounded-2xl md:rounded-[24px] md:hover:rounded-2xl transition-all bg-emerald-600 text-white font-black text-xl md:text-2xl shadow-lg shrink-0"
         title="Sunucu ekle"
       >
         +
       </button>
       <button
         onClick={onRequestClearAll}
-        className="w-12 h-12 rounded-[24px] hover:rounded-2xl transition-all bg-slate-800 text-rose-400 font-black text-lg shadow-lg"
+        className="w-10 h-10 md:w-12 md:h-12 rounded-2xl md:rounded-[24px] md:hover:rounded-2xl transition-all bg-slate-800 text-rose-400 font-black text-base md:text-lg shadow-lg shrink-0"
         title="Tüm sunucu ve odaları temizle"
       >
         ⌫

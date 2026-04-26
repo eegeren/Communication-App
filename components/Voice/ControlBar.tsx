@@ -33,12 +33,12 @@ function HeadphoneIcon({ crossed }: { crossed: boolean }) {
 export default function ControlBar({ isMuted, isDeafened, toggleMute, toggleDeafen }: ControlBarProps) {
 
   return (
-    <div className="p-4 bg-slate-800/50 border-t border-slate-800 space-y-3 shrink-0">
-      <button onClick={toggleDeafen} className={`w-full p-4 rounded-2xl font-black text-[10px] uppercase shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 ${isDeafened ? 'bg-amber-500 text-slate-900' : 'bg-slate-700'}`}>
+    <div className="p-2 md:p-4 bg-slate-800/50 border-t border-slate-800 grid grid-cols-2 md:grid-cols-1 gap-2 md:gap-3 shrink-0">
+      <button onClick={toggleDeafen} className={`w-full p-3 md:p-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 ${isDeafened ? 'bg-amber-500 text-slate-900' : 'bg-slate-700'}`}>
         <HeadphoneIcon crossed={isDeafened} />
         {isDeafened ? "Kulaklığı Aç" : "Kulaklığı Sustur"}
       </button>
-      <button onClick={toggleMute} className={`w-full p-4 rounded-2xl font-black text-[10px] uppercase shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 ${isMuted ? 'bg-rose-600' : 'bg-sky-600'} ${isDeafened ? 'opacity-50 cursor-not-allowed' : ''}`}>
+      <button onClick={toggleMute} className={`w-full p-3 md:p-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 ${isMuted ? 'bg-rose-600' : 'bg-sky-600'} ${isDeafened ? 'opacity-50 cursor-not-allowed' : ''}`}>
         <MicIcon crossed={isMuted} />
         {isMuted ? "Mikrofonu Aç" : "Mikrofonu Kapat"}
       </button>

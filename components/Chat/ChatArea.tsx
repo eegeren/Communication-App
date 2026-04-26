@@ -71,9 +71,9 @@ export default function ChatArea({
 
   return (
     <div className={`flex-1 flex flex-col ${themeMode === "dark" ? "bg-slate-950" : "bg-transparent"}`}>
-      <div className={`p-4 border-b flex justify-between items-center shadow-sm ${themeMode === "dark" ? "border-slate-900 bg-slate-900/20" : "border-slate-300 bg-white/90 backdrop-blur"}`}>
-        <h2 className="font-black text-sm uppercase tracking-widest"># {currentRoom || "Kanal Seçilmedi"}</h2>
-        <div className="flex gap-4 text-slate-500 text-xs font-bold uppercase">
+      <div className={`p-3 md:p-4 border-b flex justify-between items-center shadow-sm ${themeMode === "dark" ? "border-slate-900 bg-slate-900/20" : "border-slate-300 bg-white/90 backdrop-blur"}`}>
+        <h2 className="font-black text-[11px] md:text-sm uppercase tracking-widest"># {currentRoom || "Kanal Seçilmedi"}</h2>
+        <div className="flex gap-2 md:gap-4 text-slate-500 text-[10px] md:text-xs font-bold uppercase">
           <span className="hover:text-white cursor-pointer">Duyurular</span>
           <button type="button" onClick={onTogglePinnedPanel} className="hover:text-white">
             Sabitlenenler ({pinnedMessages.length})
@@ -83,7 +83,7 @@ export default function ChatArea({
           </button>
         </div>
       </div>
-      <div className={`px-4 py-2 border-b ${themeMode === "dark" ? "border-slate-900" : "border-slate-300 bg-white/70"}`}>
+      <div className={`px-3 md:px-4 py-2 border-b ${themeMode === "dark" ? "border-slate-900" : "border-slate-300 bg-white/70"}`}>
         <input
           type="text"
           value={searchTerm}
@@ -109,7 +109,7 @@ export default function ChatArea({
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 md:space-y-5">
         {visibleMessages.map((m) => (
           <div key={m.id} className={`group flex flex-col p-2 rounded-2xl transition-all relative ${themeMode === "dark" ? "hover:bg-slate-900/30" : "hover:bg-white/70 border border-transparent hover:border-slate-300"}`}>
             <div className="flex items-center gap-2 mb-1">
@@ -166,7 +166,7 @@ export default function ChatArea({
         {typingLabel}
       </div>
 
-      <div className={`p-4 ${themeMode === "dark" ? "bg-slate-950" : "bg-transparent"}`}>
+      <div className={`p-3 md:p-4 ${themeMode === "dark" ? "bg-slate-950" : "bg-transparent"}`}>
         <form onSubmit={sendMessage} className={`rounded-2xl flex items-center p-2 border focus-within:border-sky-500 transition-all shadow-2xl ${themeMode === "dark" ? "bg-slate-900 border-slate-800" : "bg-white border-slate-300"}`}>
           <label className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-sky-500 text-2xl cursor-pointer">
             +

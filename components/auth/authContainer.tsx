@@ -93,7 +93,62 @@ export default function AuthContainer({ onJoin }: AuthProps) {
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans overflow-hidden">
-      <div className="relative w-full max-w-[900px] h-[600px] bg-slate-900 rounded-[60px] overflow-hidden shadow-2xl border border-slate-800 flex">
+      <div className="w-full max-w-md md:hidden bg-slate-900 rounded-3xl border border-slate-800 p-5 shadow-2xl">
+        <div className="flex gap-2 mb-5">
+          <button
+            onClick={() => setIsLoginActive(true)}
+            className={`flex-1 rounded-xl py-2 text-xs font-black uppercase ${
+              isLoginActive ? "bg-rose-600 text-white" : "bg-slate-800 text-slate-400"
+            }`}
+          >
+            Giriş
+          </button>
+          <button
+            onClick={() => setIsLoginActive(false)}
+            className={`flex-1 rounded-xl py-2 text-xs font-black uppercase ${
+              !isLoginActive ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-400"
+            }`}
+          >
+            Kayıt
+          </button>
+        </div>
+        <div className="space-y-4">
+          {!isLoginActive ? (
+            <input
+              type="text"
+              placeholder="Takma Ad"
+              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none focus:border-sky-500"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+            />
+          ) : null}
+          <input
+            type="email"
+            placeholder="E-posta"
+            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none focus:border-rose-500"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Şifre"
+            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none focus:border-rose-500"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button
+            onClick={() => handleAuthRequest(isLoginActive ? "login" : "register")}
+            disabled={isSubmitting}
+            className={`w-full text-white p-3 rounded-xl font-black text-sm disabled:opacity-60 ${
+              isLoginActive ? "bg-rose-600" : "bg-sky-600"
+            }`}
+          >
+            {isLoginActive ? "BAĞLAN" : "HESAP OLUŞTUR"}
+          </button>
+        </div>
+      </div>
+
+      <div className="relative w-full max-w-[900px] h-[600px] bg-slate-900 rounded-[60px] overflow-hidden shadow-2xl border border-slate-800 hidden md:flex">
         {/* Giriş Formu */}
         <div className={`w-1/2 h-full flex flex-col items-center justify-center p-14 transition-all duration-700 ease-in-out z-10 ${!isLoginActive ? 'translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
           <h2 className="text-4xl font-black text-rose-500 mb-10 uppercase tracking-tighter">Giriş Yap</h2>

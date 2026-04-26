@@ -62,6 +62,7 @@ type DialogState =
   | null;
 
 export default function Home() {
+  const [mobilePane, setMobilePane] = useState<"channels" | "chat">("chat");
   const [isJoined, setIsJoined] = useState(false);
   const [userName, setUserName] = useState("");
   const [authToken, setAuthToken] = useState("");
@@ -396,6 +397,7 @@ export default function Home() {
     socket.emit("join-room", { roomId: roomName, userName, serverId: currentServer }, (res: { ok?: boolean }) => {
       if (res?.ok) {
         setCurrentRoom(roomName);
+        setMobilePane("chat");
         setTypingUsers([]);
         socket.emit("presence-status", profile.status || "online");
         setUnreadByRoom((prev) => ({ ...prev, [roomName]: 0 }));
@@ -754,7 +756,7 @@ export default function Home() {
 
   return (
     <div
-      className={`flex h-screen max-h-screen font-sans overflow-hidden ${
+      className={`flex flex-col md:flex-row h-[100dvh] max-h-[100dvh] font-sans overflow-hidden ${
         themeMode === "dark" ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-950"
       }`}
     >
@@ -785,7 +787,22 @@ export default function Home() {
         onRequestClearAll={() => setDialog({ type: "clear-all" })}
       />
 
-      <div className="w-72 min-w-72 h-full flex flex-col border-r border-slate-800">
+      <div className="md:hidden px-3 py-2 border-b border-slate-800 flex gap-2">
+        <button
+          onClick={() => setMobilePane("channels")}
+          className={`flex-1 rounded-lg py-2 text-xs font-bold ${mobilePane === "channels" ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-300"}`}
+        >
+          Kanallar
+        </button>
+        <button
+          onClick={() => setMobilePane("chat")}
+          className={`flex-1 rounded-lg py-2 text-xs font-bold ${mobilePane === "chat" ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-300"}`}
+        >
+          Sohbet
+        </button>
+      </div>
+
+      <div className={`w-full md:w-72 md:min-w-72 h-[calc(100dvh-150px)] md:h-full flex-col border-r border-slate-800 ${mobilePane === "channels" ? "flex" : "hidden md:flex"}`}>
         <ChannelList
           rooms={activeRooms.filter((r) => (r.serverId || "default") === currentServer)}
           currentRoom={currentRoom}
@@ -814,7 +831,7 @@ export default function Home() {
         <ControlBar isMuted={isMuted} isDeafened={isDeafened} toggleMute={toggleMute} toggleDeafen={toggleDeafen} />
       </div>
 
-      <div className={`flex-1 flex p-4 md:p-8 overflow-y-auto min-w-0 ${themeMode === "dark" ? "bg-slate-950" : "bg-gradient-to-b from-slate-100 to-slate-200"}`}>
+      <div className={`flex-1 ${mobilePane === "chat" ? "flex" : "hidden md:flex"} p-2 md:p-8 overflow-y-auto min-w-0 h-[calc(100dvh-150px)] md:h-full ${themeMode === "dark" ? "bg-slate-950" : "bg-gradient-to-b from-slate-100 to-slate-200"}`}>
         <ChatArea
           messages={messages}
           newMessage={newMessage}
