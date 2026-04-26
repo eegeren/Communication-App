@@ -211,6 +211,16 @@ class PrismaStore {
     });
   }
 
+  async deleteMessageByExternalId(roomId, externalId) {
+    const deleted = await this.prisma.message.deleteMany({
+      where: {
+        roomId,
+        externalId: String(externalId),
+      },
+    });
+    return deleted.count > 0;
+  }
+
   async findUserByEmail(email) {
     return this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },

@@ -432,6 +432,11 @@ function registerSocketHandlers(io, { state, store, env }) {
         });
 
         socket.emit("message-history", await store.getRecentMessages(persistedRoomId, 50));
+        const peerIds = state
+          .getRoomUsers(persistedRoomId)
+          .filter((roomUser) => roomUser.id !== socket.id)
+          .map((roomUser) => roomUser.id);
+        socket.emit("room-peers", peerIds);
         socket.to(persistedRoomId).emit("user-joined", socket.id);
         await emitServerList(io, store);
         await emitRoomList(io, state, store);
@@ -846,14 +851,14 @@ function registerSocketHandlers(io, { state, store, env }) {
         if (target.sender !== user.name) {
           throw new Error("Sadece kendi mesajını silebilirsin.");
         }
-        const sanitizedHistory = history.filter(
-          (message) => String(message.id) !== String(parsed.messageId)
+        const deleted = await store.deleteMessageByExternalId?.(
+          user.room,
+          parsed.messageId
         );
-        if (store.kind === "json") {
-          // Json store has no delete primitive; rewrite by clear+append.
-          store.data.rooms[user.room].messages = sanitizedHistory;
-          store.flush();
+        if (!deleted) {
+          throw new Error("Mesaj silinemedi.");
         }
+        const sanitizedHistory = await store.getRecentMessages(user.room, 200);
         io.to(user.room).emit("message-history", sanitizedHistory);
         if (typeof ack === "function") ack({ ok: true });
       } catch (error) {

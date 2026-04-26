@@ -233,6 +233,16 @@ export default function Home() {
       await pc.setLocalDescription(offer);
       socket.emit("offer", { offer, to: peerId });
     };
+    const handleRoomPeers = async (peerIds: string[]) => {
+      if (!localStream.current) return;
+      for (const peerId of peerIds) {
+        if (peerId === socket.id || peerConnections.current[peerId]) continue;
+        const pc = createPeerConnection(peerId);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit("offer", { offer, to: peerId });
+      }
+    };
     const handleOffer = async ({ offer, from }: SignalPayload) => {
       if (!offer) return;
       const pc = createPeerConnection(from);
@@ -305,6 +315,7 @@ export default function Home() {
     socket.on("answer", handleAnswer);
     socket.on("ice-candidate", handleIceCandidate);
     socket.on("user-left", handleUserLeft);
+    socket.on("room-peers", handleRoomPeers);
 
     return () => {
       socket.off("server-list", handleServerList);
@@ -323,6 +334,7 @@ export default function Home() {
       socket.off("answer", handleAnswer);
       socket.off("ice-candidate", handleIceCandidate);
       socket.off("user-left", handleUserLeft);
+      socket.off("room-peers", handleRoomPeers);
       resetVoiceConnections();
       stopSpeakingDetection();
     };
@@ -387,6 +399,8 @@ export default function Home() {
         setTypingUsers([]);
         socket.emit("presence-status", profile.status || "online");
         setUnreadByRoom((prev) => ({ ...prev, [roomName]: 0 }));
+        setIsMuted(false);
+        setIsDeafened(false);
       }
     });
   };
@@ -401,6 +415,11 @@ export default function Home() {
     setAudioMenu(null);
     setSearchTerm("");
     resetVoiceConnections();
+    stopSpeakingDetection();
+    if (localStream.current) {
+      localStream.current.getTracks().forEach((track) => track.stop());
+      localStream.current = null;
+    }
     socket.emit("typing-status", { roomId: lastRoom, serverId: currentServer, userName, isTyping: false });
     socket.emit("leave-room", {});
   };
@@ -537,8 +556,8 @@ export default function Home() {
     if (!currentRoom) {
       return;
     }
-    if (file.size > 1024 * 1024) {
-      alert("Dosya boyutu en fazla 1 MB olabilir.");
+    if (file.size > 4 * 1024 * 1024) {
+      alert("Dosya boyutu en fazla 4 MB olabilir.");
       return;
     }
     const reader = new FileReader();
@@ -551,7 +570,7 @@ export default function Home() {
       socket.emit(
         "send-message",
         {
-          text: `[Dosya] ${file.name}`,
+          text: "",
           attachment: {
             name: file.name,
             type: file.type || "application/octet-stream",
@@ -584,6 +603,11 @@ export default function Home() {
     setSearchTerm("");
     setIsPinnedPanelOpen(false);
     resetVoiceConnections();
+    stopSpeakingDetection();
+    if (localStream.current) {
+      localStream.current.getTracks().forEach((track) => track.stop());
+      localStream.current = null;
+    }
     setSelectedUserId(null);
     setAudioMenu(null);
   };
@@ -790,7 +814,7 @@ export default function Home() {
         <ControlBar isMuted={isMuted} isDeafened={isDeafened} toggleMute={toggleMute} toggleDeafen={toggleDeafen} />
       </div>
 
-      <div className={`flex-1 flex p-4 md:p-8 overflow-y-auto min-w-0 ${themeMode === "dark" ? "bg-slate-950" : "bg-slate-100"}`}>
+      <div className={`flex-1 flex p-4 md:p-8 overflow-y-auto min-w-0 ${themeMode === "dark" ? "bg-slate-950" : "bg-gradient-to-b from-slate-100 to-slate-200"}`}>
         <ChatArea
           messages={messages}
           newMessage={newMessage}

@@ -13,8 +13,8 @@ const messageSchema = z.object({
     .object({
       name: z.string().trim().min(1).max(255),
       type: z.string().trim().max(128).optional().default("application/octet-stream"),
-      dataUrl: z.string().trim().min(1).max(350000),
-      size: z.number().int().nonnegative().max(2 * 1024 * 1024),
+      dataUrl: z.string().trim().min(1).max(6 * 1024 * 1024),
+      size: z.number().int().nonnegative().max(5 * 1024 * 1024),
     })
     .optional(),
 }).refine((payload) => payload.text.trim().length > 0 || Boolean(payload.attachment), {

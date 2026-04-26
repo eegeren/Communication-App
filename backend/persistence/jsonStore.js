@@ -190,6 +190,16 @@ class JsonStore {
     this.flush();
   }
 
+  async deleteMessageByExternalId(roomId, externalId) {
+    const room = this.ensureRoom(roomId);
+    const beforeCount = room.messages.length;
+    room.messages = room.messages.filter(
+      (message) => String(message.id) !== String(externalId)
+    );
+    this.flush();
+    return room.messages.length !== beforeCount;
+  }
+
   async findUserByEmail(email) {
     return this.data.users[email.toLowerCase()] || null;
   }
