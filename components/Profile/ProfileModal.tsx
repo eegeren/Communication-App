@@ -19,7 +19,7 @@ export default function ProfileModal({ isOpen, onClose, userData, onSave }: Prof
   const [bio, setBio] = useState(userData.bio || "");
   const [name, setName] = useState(userData.name || "");
   const [avatarUrl, setAvatarUrl] = useState(userData.avatarUrl || "");
-  const [status, setStatus] = useState<ProfileData["status"]>("online");
+  const [status, setStatus] = useState<ProfileData["status"]>(userData.status || "online");
   const statuses: Array<NonNullable<ProfileData["status"]>> = ["online", "idle", "dnd"];
 
   if (!isOpen) return null;

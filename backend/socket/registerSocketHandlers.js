@@ -17,11 +17,12 @@ const { getPrismaClient } = require("../lib/prisma");
 const { verifyAuthToken } = require("../lib/jwt");
 const { z } = require("zod");
 
-function buildChatMessage(user, text) {
+function buildChatMessage(user, text, attachment = null) {
   return {
     id: Date.now(),
     sender: user.name,
     text,
+    attachment: attachment || undefined,
     time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
   };
 }
@@ -412,6 +413,7 @@ function registerSocketHandlers(io, { state, store, env }) {
           isSpeaking: false,
           isMuted: false,
           isSharingScreen: false,
+          status: "online",
         });
 
         await store.appendEvent(persistedRoomId, {
@@ -719,6 +721,56 @@ function registerSocketHandlers(io, { state, store, env }) {
       }
     });
 
+    socket.on("presence-status", (payload, ack) => {
+      try {
+        const parsed = z.enum(["online", "idle", "dnd"]).parse(payload);
+        const user = state.getUser(socket.id);
+        if (!user?.room) {
+          throw new Error("User not in room");
+        }
+        user.status = parsed;
+        emitUserList(io, state, user.room);
+        if (typeof ack === "function") {
+          ack({ ok: true });
+        }
+      } catch (error) {
+        if (typeof ack === "function") {
+          ack({ ok: false, error: error.message });
+        }
+      }
+    });
+
+    socket.on("leave-room", async (_payload, ack) => {
+      try {
+        const user = state.getUser(socket.id);
+        if (!user?.room) {
+          if (typeof ack === "function") ack({ ok: true });
+          return;
+        }
+        const oldRoom = user.room;
+        socket.leave(oldRoom);
+        await store.appendEvent(oldRoom, {
+          type: "leave",
+          socketId: socket.id,
+          userName: user.name,
+          at: Date.now(),
+        });
+        state.upsertUser(socket.id, {
+          ...user,
+          room: "",
+          roomName: "",
+          isSpeaking: false,
+          isMuted: true,
+        });
+        socket.emit("message-history", []);
+        await emitRoomList(io, state, store);
+        emitUserList(io, state, oldRoom);
+        if (typeof ack === "function") ack({ ok: true });
+      } catch (error) {
+        if (typeof ack === "function") ack({ ok: false, error: error.message });
+      }
+    });
+
     socket.on("speaking-status", (payload) => {
       try {
         const status = parseOrThrow(statusSchema, payload, "speaking-status");
@@ -757,7 +809,8 @@ function registerSocketHandlers(io, { state, store, env }) {
         if (!user?.room) {
           throw new Error("User not in room");
         }
-        const message = buildChatMessage(user, parsed.text);
+        const safeText = parsed.text ? parsed.text.trim() : "";
+        const message = buildChatMessage(user, safeText, parsed.attachment || null);
         await store.appendMessage(user.room, message);
         io.to(user.room).emit("receive-message", message);
         if (typeof ack === "function") {

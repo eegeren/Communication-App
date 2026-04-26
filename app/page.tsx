@@ -21,8 +21,20 @@ type UserItem = {
   roomName?: string;
   isMuted?: boolean;
   isSpeaking?: boolean;
+  status?: ProfileStatus | "offline";
 };
-type ChatMessage = { id: number | string; sender: string; text: string; time?: string };
+type ChatMessage = {
+  id: number | string;
+  sender: string;
+  text: string;
+  time?: string;
+  attachment?: {
+    name: string;
+    type: string;
+    dataUrl: string;
+    size: number;
+  };
+};
 type SignalPayload = {
   from: string;
   offer?: RTCSessionDescriptionInit;
@@ -67,6 +79,15 @@ export default function Home() {
   const [isDeafened, setIsDeafened] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [dialogInput, setDialogInput] = useState("");
+  const [pinnedByRoom, setPinnedByRoom] = useState<Record<string, ChatMessage[]>>({});
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [audioMenu, setAudioMenu] = useState<{
+    userId: string;
+    userName: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
 
   const localStream = useRef<MediaStream | null>(null);
   const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({});
@@ -148,6 +169,7 @@ export default function Home() {
       if (!remoteAudios.current[peerId]) {
         const audio = new Audio();
         audio.autoplay = true;
+        audio.volume = userVolumes[peerId] ?? 1;
         remoteAudios.current[peerId] = audio;
       }
       remoteAudios.current[peerId].srcObject = event.streams[0];
@@ -257,6 +279,20 @@ export default function Home() {
     });
   }, [isDeafened]);
 
+  useEffect(() => {
+    Object.entries(remoteAudios.current).forEach(([peerId, audio]) => {
+      audio.volume = userVolumes[peerId] ?? 1;
+    });
+  }, [userVolumes]);
+
+  useEffect(() => {
+    const handleWindowClick = () => setAudioMenu(null);
+    window.addEventListener("click", handleWindowClick);
+    return () => window.removeEventListener("click", handleWindowClick);
+  }, []);
+
+  const selectedUser = selectedUserId ? users.find((u) => u.id === selectedUserId) || null : null;
+
   const handleJoinRoom = async (roomName: string) => {
     if (!roomName.trim() || roomName === currentRoom) return;
     if (!localStream.current) {
@@ -273,7 +309,26 @@ export default function Home() {
       if (res?.ok) {
         setCurrentRoom(roomName);
         setTypingUsers([]);
+        socket.emit("presence-status", profile.status || "online");
       }
+    });
+  };
+
+  const leaveCurrentRoom = () => {
+    if (!currentRoom) {
+      return;
+    }
+    socket.emit("leave-room", {}, (res: { ok?: boolean; error?: string }) => {
+      if (!res?.ok) {
+        alert(res?.error || "Odadan ayrılamadın.");
+        return;
+      }
+      setCurrentRoom("");
+      setTypingUsers([]);
+      setMessages([]);
+      setSelectedUserId(null);
+      setAudioMenu(null);
+      resetVoiceConnections();
     });
   };
 
@@ -365,6 +420,14 @@ export default function Home() {
       }
       socket.emit("mute-status", true);
       socket.emit("speaking-status", false);
+    } else {
+      setIsMuted(false);
+      if (localStream.current) {
+        localStream.current.getAudioTracks().forEach((track) => {
+          track.enabled = true;
+        });
+      }
+      socket.emit("mute-status", false);
     }
     Object.values(remoteAudios.current).forEach((audio) => {
       audio.muted = status;
@@ -397,6 +460,42 @@ export default function Home() {
     });
   };
 
+  const handleFilePick = (file: File) => {
+    if (!currentRoom) {
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      alert("Dosya boyutu en fazla 1 MB olabilir.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : "";
+      if (!dataUrl) {
+        alert("Dosya okunamadı.");
+        return;
+      }
+      socket.emit(
+        "send-message",
+        {
+          text: "",
+          attachment: {
+            name: file.name,
+            type: file.type || "application/octet-stream",
+            dataUrl,
+            size: file.size,
+          },
+        },
+        (res: { ok?: boolean; error?: string }) => {
+          if (!res?.ok) {
+            alert(res?.error || "Dosya gönderilemedi.");
+          }
+        }
+      );
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleMessageInput = (value: string) => {
     setNewMessage(value);
     if (!currentRoom) return;
@@ -410,6 +509,31 @@ export default function Home() {
     setMessages([]);
     setTypingUsers([]);
     resetVoiceConnections();
+    setSelectedUserId(null);
+    setAudioMenu(null);
+  };
+
+  const togglePinMessage = (message: ChatMessage) => {
+    if (!currentRoom) {
+      return;
+    }
+    setPinnedByRoom((prev) => {
+      const current = prev[currentRoom] || [];
+      const alreadyPinned = current.some((item) => item.id === message.id);
+      return {
+        ...prev,
+        [currentRoom]: alreadyPinned
+          ? current.filter((item) => item.id !== message.id)
+          : [...current, message],
+      };
+    });
+  };
+
+  const isPinned = (messageId: number | string) => {
+    if (!currentRoom) {
+      return false;
+    }
+    return (pinnedByRoom[currentRoom] || []).some((item) => item.id === messageId);
   };
 
   const typingLabel = typingUsers.length
@@ -449,6 +573,7 @@ export default function Home() {
         avatarUrl: updated.avatarUrl || null,
         status: (updated.status || "online") as ProfileStatus,
       });
+      socket.emit("presence-status", (updated.status || "online") as ProfileStatus);
       setIsProfileOpen(false);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Profil güncellenemedi.");
@@ -483,6 +608,7 @@ export default function Home() {
   return (
     <div className="flex h-screen max-h-screen bg-slate-950 text-white font-sans overflow-hidden">
       <ProfileModal
+        key={`${isProfileOpen}-${profile.name}-${profile.status}-${profile.avatarUrl || ""}`}
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         userData={{
@@ -521,8 +647,14 @@ export default function Home() {
           currentUserId={socket.id || ""}
           users={users}
           userName={userName}
+          userStatus={profile.status}
           setIsJoined={setIsJoined}
           onOpenProfile={() => setIsProfileOpen(true)}
+          onLeaveRoom={leaveCurrentRoom}
+          onSelectUser={(selected) => setSelectedUserId(selected.id)}
+          onOpenUserAudioMenu={(selected, x, y) =>
+            setAudioMenu({ userId: selected.id, userName: selected.name, x, y })
+          }
         />
 
         <ControlBar isMuted={isMuted} isDeafened={isDeafened} toggleMute={toggleMute} toggleDeafen={toggleDeafen} />
@@ -537,8 +669,56 @@ export default function Home() {
           userName={userName}
           currentRoom={currentRoom}
           typingLabel={typingLabel}
+          pinnedMessages={currentRoom ? pinnedByRoom[currentRoom] || [] : []}
+          onTogglePinMessage={togglePinMessage}
+          isPinned={isPinned}
+          onPickFile={handleFilePick}
         />
       </div>
+
+      {selectedUser ? (
+        <div className="fixed right-6 top-6 z-[90] w-64 rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-black text-white truncate">{selectedUser.name}</h4>
+            <button onClick={() => setSelectedUserId(null)} className="text-slate-400 hover:text-white">✕</button>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">
+            Durum:{" "}
+            <span className="font-semibold text-slate-200">
+              {selectedUser.status === "idle"
+                ? "Boşta"
+                : selectedUser.status === "dnd"
+                  ? "Rahatsız Etmeyin"
+                  : "Çevrimiçi"}
+            </span>
+          </p>
+          <p className="text-xs text-slate-500 mt-1">Sağ tık ile ses seviyesini ayarlayabilirsin.</p>
+        </div>
+      ) : null}
+
+      {audioMenu ? (
+        <div
+          className="fixed z-[95] w-56 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl"
+          style={{ left: audioMenu.x, top: audioMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-xs text-slate-300 font-semibold mb-2 truncate">{audioMenu.userName} sesi</p>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round((userVolumes[audioMenu.userId] ?? 1) * 100)}
+            onChange={(e) => {
+              const volume = Number(e.target.value) / 100;
+              setUserVolumes((prev) => ({ ...prev, [audioMenu.userId]: volume }));
+            }}
+            className="w-full"
+          />
+          <p className="text-[10px] text-slate-500 mt-1">
+            {(Math.round((userVolumes[audioMenu.userId] ?? 1) * 100))}%
+          </p>
+        </div>
+      ) : null}
 
       {dialog ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">

@@ -8,6 +8,7 @@ type ChannelUser = {
   roomName?: string;
   isMuted?: boolean;
   isSpeaking?: boolean;
+  status?: "online" | "idle" | "dnd" | "offline";
 };
 
 interface ChannelListProps {
@@ -19,8 +20,12 @@ interface ChannelListProps {
   currentUserId: string;
   users: ChannelUser[];
   userName: string;
+  userStatus?: "online" | "idle" | "dnd";
   setIsJoined: (isJoined: boolean) => void;
   onOpenProfile: () => void;
+  onLeaveRoom: () => void;
+  onSelectUser: (user: ChannelUser) => void;
+  onOpenUserAudioMenu: (user: ChannelUser, x: number, y: number) => void;
 }
 
 export default function ChannelList({
@@ -32,9 +37,27 @@ export default function ChannelList({
   currentUserId,
   users,
   userName,
+  userStatus = "online",
   setIsJoined,
   onOpenProfile,
+  onLeaveRoom,
+  onSelectUser,
+  onOpenUserAudioMenu,
 }: ChannelListProps) {
+  const statusLabelMap: Record<string, string> = {
+    online: "Çevrimiçi",
+    idle: "Boşta",
+    dnd: "Rahatsız etme",
+    offline: "Çevrimdışı",
+  };
+
+  const statusColorMap: Record<string, string> = {
+    online: "bg-emerald-400",
+    idle: "bg-amber-400",
+    dnd: "bg-rose-500",
+    offline: "bg-slate-500",
+  };
+
   return (
     <div className="h-full bg-slate-900 flex flex-col min-h-0">
       <div className="p-6 border-b border-slate-800 flex justify-between items-center shadow-md">
@@ -49,6 +72,10 @@ export default function ChannelList({
         >
           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1 group-hover:text-rose-500 transition-all">Profilini Düzenle</p>
           <p className="text-sm font-black text-slate-200 truncate">{userName}</p>
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${statusColorMap[userStatus] || statusColorMap.online}`} />
+            <span className="text-[10px] text-slate-400 font-semibold">{statusLabelMap[userStatus] || statusLabelMap.online}</span>
+          </div>
         </div>
 
         <div className="bg-slate-800/20 p-3 rounded-xl border border-slate-800/50 mb-2">
@@ -95,8 +122,17 @@ export default function ChannelList({
                 {users
                   .filter((u) => u.roomName === room.name)
                   .map((u) => (
-                    <div key={u.id} className="flex items-center justify-between text-[11px] text-slate-400">
-                      <div className={`truncate ${u.isSpeaking && !u.isMuted ? "text-emerald-300 drop-shadow-[0_0_6px_rgba(52,211,153,0.7)]" : ""}`}>
+                    <div
+                      key={u.id}
+                      className="flex items-center justify-between text-[11px] text-slate-400 rounded-lg px-1 py-0.5 hover:bg-slate-800/60 cursor-pointer"
+                      onClick={() => onSelectUser(u)}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        onOpenUserAudioMenu(u, event.clientX, event.clientY);
+                      }}
+                    >
+                      <div className={`truncate flex items-center gap-1.5 ${u.isSpeaking && !u.isMuted ? "text-emerald-300 drop-shadow-[0_0_6px_rgba(52,211,153,0.7)]" : ""}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusColorMap[u.status || "online"] || statusColorMap.online}`} />
                         {u.name}
                       </div>
                       <div className="text-[10px]">
@@ -110,6 +146,14 @@ export default function ChannelList({
             </div>
           ))}
         </div>
+      </div>
+      <div className="p-3 border-t border-slate-800">
+        <button
+          onClick={onLeaveRoom}
+          className="w-full rounded-xl bg-slate-700 hover:bg-slate-600 text-[11px] font-black uppercase py-2"
+        >
+          Odadan Ayrıl
+        </button>
       </div>
     </div>
   );

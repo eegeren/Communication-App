@@ -6,6 +6,12 @@ type MessageItem = {
   sender: string;
   text: string;
   time?: string;
+  attachment?: {
+    name: string;
+    type: string;
+    dataUrl: string;
+    size: number;
+  };
 };
 
 interface ChatAreaProps {
@@ -16,6 +22,10 @@ interface ChatAreaProps {
   userName: string;
   currentRoom: string;
   typingLabel: string;
+  pinnedMessages: MessageItem[];
+  onTogglePinMessage: (message: MessageItem) => void;
+  isPinned: (messageId: number | string) => boolean;
+  onPickFile: (file: File) => void;
 }
 
 export default function ChatArea({
@@ -26,6 +36,10 @@ export default function ChatArea({
   userName,
   currentRoom,
   typingLabel,
+  pinnedMessages,
+  onTogglePinMessage,
+  isPinned,
+  onPickFile,
 }: ChatAreaProps) {
   return (
     <div className="flex-1 flex flex-col bg-slate-950">
@@ -33,9 +47,21 @@ export default function ChatArea({
         <h2 className="font-black text-sm uppercase tracking-widest"># {currentRoom || "Kanal Seçilmedi"}</h2>
         <div className="flex gap-4 text-slate-500 text-xs font-bold uppercase">
           <span className="hover:text-white cursor-pointer">Duyurular</span>
-          <span className="hover:text-white cursor-pointer">Sabitlenenler</span>
+          <span className="hover:text-white cursor-pointer">Sabitlenenler ({pinnedMessages.length})</span>
         </div>
       </div>
+
+      {pinnedMessages.length > 0 ? (
+        <div className="px-6 py-3 border-b border-slate-900 bg-slate-900/40 space-y-2 max-h-28 overflow-y-auto">
+          {pinnedMessages.slice(-3).map((m) => (
+            <div key={`pinned-${m.id}`} className="text-xs text-slate-300 truncate">
+              <span className="text-amber-300 mr-1">📌</span>
+              <span className="font-bold mr-1">{m.sender}:</span>
+              <span>{m.text || (m.attachment ? `${m.attachment.name} dosyasını paylaştı` : "")}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
         {messages.map((m) => (
@@ -49,6 +75,25 @@ export default function ChatArea({
             <div className="text-sm text-slate-300 leading-relaxed pr-20">
               {m.text}
             </div>
+            {m.attachment ? (
+              <a
+                href={m.attachment.dataUrl}
+                download={m.attachment.name}
+                className="mt-2 inline-flex items-center gap-2 text-xs text-sky-300 hover:text-sky-200 underline underline-offset-2"
+              >
+                📎 {m.attachment.name}
+              </a>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => onTogglePinMessage(m)}
+              className={`absolute right-2 top-2 text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all ${
+                isPinned(m.id) ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"
+              }`}
+              title="Mesajı sabitle"
+            >
+              📌
+            </button>
           </div>
         ))}
       </div>
@@ -59,7 +104,21 @@ export default function ChatArea({
 
       <div className="p-4 bg-slate-950">
         <form onSubmit={sendMessage} className="bg-slate-900 rounded-2xl flex items-center p-2 border border-slate-800 focus-within:border-sky-500 transition-all shadow-2xl">
-          <button type="button" className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-sky-500 text-2xl">+</button>
+          <label className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-sky-500 text-2xl cursor-pointer">
+            +
+            <input
+              type="file"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  onPickFile(file);
+                }
+                event.currentTarget.value = "";
+              }}
+              disabled={!currentRoom}
+            />
+          </label>
           <input 
             type="text" 
             placeholder={`#${currentRoom} kanalına mesaj gönder`} 

@@ -8,7 +8,17 @@ const joinRoomSchema = z.object({
 });
 
 const messageSchema = z.object({
-  text: z.string().trim().min(1).max(2000),
+  text: z.string().max(350000).optional().default(""),
+  attachment: z
+    .object({
+      name: z.string().trim().min(1).max(255),
+      type: z.string().trim().max(128).optional().default("application/octet-stream"),
+      dataUrl: z.string().trim().min(1).max(350000),
+      size: z.number().int().nonnegative().max(2 * 1024 * 1024),
+    })
+    .optional(),
+}).refine((payload) => payload.text.trim().length > 0 || Boolean(payload.attachment), {
+  message: "Message must include text or attachment",
 });
 
 const statusSchema = z.boolean();

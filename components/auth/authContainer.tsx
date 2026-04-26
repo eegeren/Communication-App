@@ -24,6 +24,26 @@ export default function AuthContainer({ onJoin }: AuthProps) {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const normalizeAuthError = (rawMessage: string) => {
+    const message = (rawMessage || "").toLowerCase();
+    if (message.includes("invalid credentials")) {
+      return "E-posta veya şifre hatalı.";
+    }
+    if (message.includes("email")) {
+      return "Geçerli bir e-posta adresi gir.";
+    }
+    if (message.includes("password") && message.includes("6")) {
+      return "Şifre en az 6 karakter olmalı.";
+    }
+    if (message.includes("username") || message.includes("user name")) {
+      return "Kullanıcı adı en az 2 karakter olmalı.";
+    }
+    if (message.includes("required")) {
+      return "Lütfen zorunlu alanları doldur.";
+    }
+    return "İşlem başarısız. Bilgilerini kontrol edip tekrar dene.";
+  };
+
   const handleAuthRequest = async (mode: "login" | "register") => {
     setError("");
     const trimmedEmail = email.trim().toLowerCase();
@@ -63,7 +83,7 @@ export default function AuthContainer({ onJoin }: AuthProps) {
     } catch (requestError) {
       setError(
         requestError instanceof Error
-          ? requestError.message
+          ? normalizeAuthError(requestError.message)
           : "İşlem sırasında hata oluştu."
       );
     } finally {

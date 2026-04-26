@@ -13,13 +13,19 @@ class PrismaStore {
 
   async appendMessage(roomId, message) {
     await this.touchRoom(roomId);
+    const serializedText = message.attachment
+      ? `__ATTACHMENT__${JSON.stringify({
+          text: message.text || "",
+          attachment: message.attachment,
+        })}`
+      : message.text;
 
     await this.prisma.message.create({
       data: {
         roomId,
         externalId: String(message.id),
         sender: message.sender,
-        text: message.text,
+        text: serializedText,
         sentAt: new Date(),
       },
     });
@@ -47,15 +53,29 @@ class PrismaStore {
 
     return rows
       .reverse()
-      .map((row) => ({
-        id: Number(row.externalId) || Date.now(),
-        sender: row.sender,
-        text: row.text,
-        time: new Date(row.sentAt).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      }));
+      .map((row) => {
+        let text = row.text;
+        let attachment;
+        if (typeof row.text === "string" && row.text.startsWith("__ATTACHMENT__")) {
+          try {
+            const parsed = JSON.parse(row.text.replace("__ATTACHMENT__", ""));
+            text = parsed.text || "";
+            attachment = parsed.attachment;
+          } catch {
+            text = row.text;
+          }
+        }
+        return {
+          id: Number(row.externalId) || Date.now(),
+          sender: row.sender,
+          text,
+          ...(attachment ? { attachment } : {}),
+          time: new Date(row.sentAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+      });
   }
 
   async touchRoom(roomId) {
